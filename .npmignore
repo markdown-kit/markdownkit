@@ -1,0 +1,35 @@
+# Don't publish these to npm
+node_modules/
+.git/
+.github/
+
+# Development files
+content/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+test/
+*.test.js
+
+# Cache
+.remark-cache
+.remarkrc.js.cache
+
+# Old files
+*.old
+*.bak
+
+# Temporary
+tmp/
+temp/
