@@ -106,7 +106,7 @@ This formatter can **optionally** format `.mdd` files if you install the [MDD pa
 
 ```bash
 # Install MDD support
-pnpm add mdd
+pnpm add @entro314labs/mdd
 
 # Now .mdd files will be formatted
 pnpm run format
@@ -323,7 +323,6 @@ pnpm run preview examples/invoice.mdd
 
 ## Documentation
 
-- **[COMPREHENSIVE-GUIDE.md](COMPREHENSIVE-GUIDE.md)** - Detailed technical guide
 - **[content/guides/style-guide.md](content/guides/style-guide.md)** - Style specifications
 
 ## Tech Stack

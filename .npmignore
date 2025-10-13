@@ -74,7 +74,6 @@ coverage/
 # Backup files
 *.backup
 *.bak
-COMPREHENSIVE-GUIDE.md
 .claude/settings.local.json
 content/blog/index.md
 content/docs/api-reference.md
