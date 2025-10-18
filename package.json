@@ -71,7 +71,7 @@
   "dependencies": {
     "@adobe/remark-gridtables": "^3.0.15",
     "@code-dot-org/remark-plugins": "^2.0.0",
-    "@entro314labs/mdd": "^0.0.7",
+    "@entro314labs/remark-mdd": "^0.0.10",
     "@theguild/remark-mermaid": "^0.3.0",
     "fumadocs-docgen": "^3.0.2",
     "glob": "^11.0.3",
