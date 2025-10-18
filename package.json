@@ -1,6 +1,6 @@
 {
   "name": "@entro314labs/markdownfix",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
   "type": "module",
   "repository": {
@@ -28,8 +28,8 @@
   },
   "scripts": {
     "lint": "remark . --quiet --frail",
-    "lint:eslint": "eslint --ext .md,.mdx,.mdc,.mdd .",
-    "lint:eslint:fix": "eslint --ext .md,.mdx,.mdc,.mdd --fix .",
+    "lint:eslint": "eslint --config eslint.config.js .",
+    "lint:eslint:fix": "eslint --config eslint.config.js --fix .",
     "lint:all": "pnpm run lint && pnpm run lint:eslint",
     "format": "remark . --output --quiet",
     "format:check": "remark . --quiet",

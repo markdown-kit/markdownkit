@@ -240,11 +240,18 @@ async function runNuclearMode(files, options = {}) {
 
   // Step 3 & 4: ESLint (only if available)
   if (hasEslint) {
+    const eslintConfig = await getEslintConfigPath();
+    const configSource = eslintConfig.includes(process.cwd()) ? 'local' : 'bundled';
+
+    if (!quiet && configSource === 'bundled') {
+      console.log('  ℹ️  Using bundled ESLint config (no local config found)\n');
+    }
+
     // Step 3: ESLint auto-fix
     if (!quiet) console.log('Step 3/4: Running ESLint auto-fix...');
     try {
       const fileList = files.join(' ');
-      const eslintCmd = `npx eslint --ext .md,.mdx,.mdc,.mdd --fix ${fileList}`;
+      const eslintCmd = `npx eslint --config "${eslintConfig}" --fix ${fileList}`;
 
       try {
         execSync(eslintCmd, {
@@ -267,7 +274,7 @@ async function runNuclearMode(files, options = {}) {
     if (!quiet) console.log('Step 4/4: Running ESLint linting...');
     try {
       const fileList = files.join(' ');
-      const eslintCmd = `npx eslint --ext .md,.mdx,.mdc,.mdd ${fileList}`;
+      const eslintCmd = `npx eslint --config "${eslintConfig}" ${fileList}`;
 
       execSync(eslintCmd, {
         stdio: quiet ? 'pipe' : 'inherit',
@@ -320,6 +327,23 @@ async function checkEslintAvailable() {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Get ESLint config path
+ * Returns the config from current directory if it exists, otherwise uses the bundled one
+ */
+async function getEslintConfigPath() {
+  const localConfig = path.join(process.cwd(), 'eslint.config.js');
+
+  try {
+    await fs.access(localConfig);
+    return localConfig;
+  } catch {
+    // Use bundled config from markdownfix package
+    const bundledConfig = new URL('./eslint.config.js', import.meta.url).pathname;
+    return bundledConfig;
   }
 }
 

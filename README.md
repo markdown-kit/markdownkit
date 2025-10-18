@@ -138,12 +138,14 @@ This is a warning message!
 ```
 
 **Perfect for:**
+
 - Nuxt Content projects
 - Component-driven documentation
 - Interactive markdown content
 - Vue.js documentation sites
 
 **File Usage:**
+
 - `.mdc` extension - Dedicated MDC files (like `.mdx` for JSX)
 - MDC syntax also works in `.md` and `.mdx` files
 
@@ -337,6 +339,34 @@ Central configuration defining:
 4. Lint presets + rules
 5. `remark-stringify` - Must be last
 
+### `eslint.config.js` (Optional)
+
+When using ESLint integration for MDX/code blocks:
+
+**Global Installation Behavior:**
+
+- ✅ Uses your local `eslint.config.js` if it exists
+- ✅ Falls back to bundled config if not found
+- ℹ️ Shows message: "Using bundled ESLint config"
+
+**Custom Configuration:**
+
+Create `eslint.config.js` in your project to override defaults:
+
+```javascript
+import * as mdxPlugin from 'eslint-plugin-mdx';
+
+export default [
+  {
+    files: ['**/*.{md,mdx,mdc,mdd}'],
+    ...mdxPlugin.flat,
+    // Your custom rules here
+  }
+];
+```
+
+See [ESLINT\_INTEGRATION.md](ESLINT_INTEGRATION.md) for full details.
+
 ### `.remarkignore`
 
 Files excluded from processing:
@@ -468,7 +498,7 @@ Desktop knowledge management application with MDD integration:
 ## Documentation
 
 - **[content/guides/style-guide.md](content/guides/style-guide.md)** - Style specifications
-- **[ESLINT_INTEGRATION.md](ESLINT_INTEGRATION.md)** - ESLint + MDX integration guide
+- **[ESLINT\_INTEGRATION.md](ESLINT_INTEGRATION.md)** - ESLint + MDX integration guide
 
 ## Tech Stack
 
