@@ -11,9 +11,10 @@ Built on the Remark ecosystem with strict, consistent formatting rules for devel
 - ✅ **MDX support** - JSX components in markdown with ESLint integration
 - ✅ **MDC syntax support** - Markdown Components for Nuxt Content
 - ✅ **Comprehensive linting** - 40+ remark-lint rules for quality and consistency
-- ✅ **Code block linting** - ESLint integration for JavaScript/JSX in code blocks
+- ✅ **Code block linting** - ESLint integration built-in for JavaScript/JSX in code blocks
 - ✅ **Link validation** - Check for broken links
 - ✅ **Auto-fixing** - Automatically fix formatting issues
+- ✅ **Zero config** - Works out of the box, customize if needed
 - ✅ **IDE integration** - Works with VS Code ESLint extension
 
 ## Installation
@@ -341,13 +342,14 @@ Central configuration defining:
 
 ### `eslint.config.js` (Optional)
 
-When using ESLint integration for MDX/code blocks:
+ESLint is **built-in** with opinionated defaults. Customize by creating `eslint.config.js` in your project:
 
-**Global Installation Behavior:**
+**Default Behavior:**
 
-- ✅ Uses your local `eslint.config.js` if it exists
-- ✅ Falls back to bundled config if not found
-- ℹ️ Shows message: "Using bundled ESLint config"
+- ✅ ESLint and eslint-plugin-mdx are included in the package
+- ✅ Automatically uses bundled config if no local config found
+- ✅ Lints JavaScript/JSX in code blocks
+- ✅ Works out of the box globally or locally
 
 **Custom Configuration:**
 

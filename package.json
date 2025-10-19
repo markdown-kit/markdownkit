@@ -1,6 +1,6 @@
 {
   "name": "@entro314labs/markdownfix",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
   "type": "module",
   "repository": {
@@ -59,9 +59,6 @@
   "author": "Dominikos Pritis",
   "license": "MIT",
   "devDependencies": {
-    "eslint": "^9.38.0",
-    "eslint-plugin-mdx": "^3.6.2",
-    "eslint-plugin-react": "^7.37.5",
     "markdown-link-check": "^3.14.1",
     "remark-cli": "^12.0.1"
   },
@@ -73,6 +70,9 @@
     "@code-dot-org/remark-plugins": "^2.0.0",
     "@entro314labs/remark-mdd": "^0.0.10",
     "@theguild/remark-mermaid": "^0.3.0",
+    "eslint": "^9.38.0",
+    "eslint-plugin-mdx": "^3.6.2",
+    "eslint-plugin-react": "^7.37.5",
     "fumadocs-docgen": "^3.0.2",
     "glob": "^11.0.3",
     "js-yaml": "^4.1.0",
@@ -131,7 +131,7 @@
     "remark-rehype": "^11.1.2",
     "remark-stringify": "^11.0.0",
     "remark-toc": "^9.0.0",
-    "remark-typography": "^0.6.36",
+    "remark-typography": "^0.7.0",
     "remark-validate-links": "^13.1.0",
     "to-vfile": "^8.0.0",
     "unified-lint-rule": "^3.0.1",

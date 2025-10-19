@@ -238,12 +238,12 @@ async function runNuclearMode(files, options = {}) {
     if (!quiet) console.log(`  ✗ Remark linting failed: ${error.message}\n`);
   }
 
-  // Step 3 & 4: ESLint (only if available)
+  // Step 3 & 4: ESLint (only if ESLint is available)
   if (hasEslint) {
-    const eslintConfig = await getEslintConfigPath();
-    const configSource = eslintConfig.includes(process.cwd()) ? 'local' : 'bundled';
+    const eslintConfigInfo = await getEslintConfigPath();
+    const { configPath, source } = eslintConfigInfo;
 
-    if (!quiet && configSource === 'bundled') {
+    if (!quiet && source === 'bundled') {
       console.log('  ℹ️  Using bundled ESLint config (no local config found)\n');
     }
 
@@ -251,7 +251,7 @@ async function runNuclearMode(files, options = {}) {
     if (!quiet) console.log('Step 3/4: Running ESLint auto-fix...');
     try {
       const fileList = files.join(' ');
-      const eslintCmd = `npx eslint --config "${eslintConfig}" --fix ${fileList}`;
+      const eslintCmd = `npx eslint --config "${configPath}" --fix ${fileList}`;
 
       try {
         execSync(eslintCmd, {
@@ -274,7 +274,7 @@ async function runNuclearMode(files, options = {}) {
     if (!quiet) console.log('Step 4/4: Running ESLint linting...');
     try {
       const fileList = files.join(' ');
-      const eslintCmd = `npx eslint --config "${eslintConfig}" ${fileList}`;
+      const eslintCmd = `npx eslint --config "${configPath}" ${fileList}`;
 
       execSync(eslintCmd, {
         stdio: quiet ? 'pipe' : 'inherit',
@@ -288,6 +288,7 @@ async function runNuclearMode(files, options = {}) {
       if (!quiet) console.log(`  ⚠️  ESLint linting found issues\n`);
     }
   } else {
+    // ESLint not installed
     if (!quiet) {
       console.log('Step 3/4: Skipping ESLint (not installed)');
       console.log('  ℹ️  Install ESLint with: npm install -D eslint eslint-plugin-mdx\n');
@@ -332,22 +333,22 @@ async function checkEslintAvailable() {
 
 /**
  * Get ESLint config path
- * Returns the config from current directory if it exists, otherwise uses the bundled one
+ * Returns local config if it exists, otherwise uses bundled config
+ * Since ESLint dependencies are included in the package, bundled config always works
  */
 async function getEslintConfigPath() {
   const localConfig = path.join(process.cwd(), 'eslint.config.js');
 
   try {
     await fs.access(localConfig);
-    return localConfig;
+    // Local config exists - use it
+    return { configPath: localConfig, source: 'local' };
   } catch {
-    // Use bundled config from markdownfix package
+    // Use bundled config - dependencies are always available
     const bundledConfig = new URL('./eslint.config.js', import.meta.url).pathname;
-    return bundledConfig;
+    return { configPath: bundledConfig, source: 'bundled' };
   }
-}
-
-/**
+}/**
  * Initialize .remarkrc.js configuration
  */
 async function initConfig() {
