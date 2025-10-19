@@ -1,6 +1,6 @@
 {
   "name": "@entro314labs/markdownfix",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
   "type": "module",
   "repository": {

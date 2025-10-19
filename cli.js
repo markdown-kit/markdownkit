@@ -250,7 +250,8 @@ async function runNuclearMode(files, options = {}) {
     // Step 3: ESLint auto-fix
     if (!quiet) console.log('Step 3/4: Running ESLint auto-fix...');
     try {
-      const fileList = files.join(' ');
+      // Quote each file path to handle spaces and special characters
+      const fileList = files.map(f => `"${f}"`).join(' ');
       const eslintCmd = `npx eslint --config "${configPath}" --fix ${fileList}`;
 
       try {
@@ -273,7 +274,8 @@ async function runNuclearMode(files, options = {}) {
     // Step 4: ESLint linting
     if (!quiet) console.log('Step 4/4: Running ESLint linting...');
     try {
-      const fileList = files.join(' ');
+      // Quote each file path to handle spaces and special characters
+      const fileList = files.map(f => `"${f}"`).join(' ');
       const eslintCmd = `npx eslint --config "${configPath}" ${fileList}`;
 
       execSync(eslintCmd, {
