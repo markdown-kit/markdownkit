@@ -71,12 +71,22 @@ export default [
     },
     rules: {
       ...mdxPlugin.flatCodeBlocks.rules,
-      // Add JavaScript rules for code blocks
+      // Rules that make sense for documentation examples
       'no-var': 'error',
       'prefer-const': 'error',
-      'no-unused-vars': 'warn',
-      // Allow common globals in documentation examples
-      'no-undef': 'off',
+
+      // Disable rules that don't make sense for isolated code examples
+      'no-unused-vars': 'off',        // Examples often show declarations without usage
+      'no-undef': 'off',               // Examples may reference external variables/functions
+      'no-console': 'off',             // Console logs are common in examples
+      'no-unreachable': 'off',         // Examples may show code patterns, not full logic
+      'no-constant-condition': 'off',  // Examples may use simplified conditions
+      'no-empty': 'off',               // Empty blocks may be placeholders in examples
+      'prefer-rest-params': 'off',     // Examples may show older patterns
+      'prefer-spread': 'off',          // Examples may demonstrate various approaches
+      '@typescript-eslint/no-unused-vars': 'off',  // TypeScript variant
+      'import/no-unresolved': 'off',   // Examples won't have real imports
+      'no-redeclare': 'off',           // Multiple examples might reuse variable names
     }
   }
 ];

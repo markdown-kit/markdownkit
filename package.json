@@ -1,6 +1,6 @@
 {
   "name": "@entro314labs/markdownfix",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
   "type": "module",
   "repository": {
@@ -68,16 +68,16 @@
   "dependencies": {
     "@adobe/remark-gridtables": "^3.0.15",
     "@code-dot-org/remark-plugins": "^2.0.1",
-    "@entro314labs/remark-mdd": "^0.0.15",
+    "@entro314labs/remark-mdd": "^0.0.16",
     "@theguild/remark-mermaid": "^0.3.0",
     "eslint": "^9.39.1",
     "eslint-plugin-mdx": "^3.6.2",
     "eslint-plugin-react": "^7.37.5",
     "fumadocs-docgen": "^3.0.4",
-    "glob": "^11.0.3",
-    "js-yaml": "^4.1.0",
+    "glob": "^12.0.0",
+    "js-yaml": "^4.1.1",
     "rehype-remark": "^10.0.1",
-    "remark": "^15.0.1",
+    "remark": "latest",
     "remark-directive": "^4.0.0",
     "remark-docx": "^0.2.0",
     "remark-emoji": "^5.0.2",
