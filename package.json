@@ -66,7 +66,7 @@
     "node": ">=22.x"
   },
   "dependencies": {
-    "@adobe/remark-gridtables": "^3.0.15",
+    "@adobe/remark-gridtables": "^3.0.16",
     "@code-dot-org/remark-plugins": "^2.0.1",
     "@entro314labs/remark-mdd": "^0.0.16",
     "@theguild/remark-mermaid": "^0.3.0",
@@ -79,7 +79,7 @@
     "rehype-remark": "^10.0.1",
     "remark": "latest",
     "remark-directive": "^4.0.0",
-    "remark-docx": "^0.2.0",
+    "remark-docx": "^0.3.8",
     "remark-emoji": "^5.0.2",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
@@ -121,7 +121,7 @@
     "remark-lint-table-pipe-alignment": "^4.1.1",
     "remark-lint-table-pipes": "^5.0.1",
     "remark-lint-unordered-list-marker-style": "^4.0.1",
-    "remark-mdc": "^3.8.1",
+    "remark-mdc": "^3.9.0",
     "remark-mdx": "^3.1.1",
     "remark-mdx-frontmatter": "^5.2.0",
     "remark-preset-lint-consistent": "^6.0.1",
