@@ -18,6 +18,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { glob } from 'glob';
 import { execSync } from 'child_process';
+import { AutoFormatter } from './autoformat.js';
 
 const MARKDOWN_EXTENSIONS = ['md', 'mdx', 'mdc', 'mdd'];
 
@@ -59,6 +60,7 @@ COMMANDS:
   check [files]      Check formatting without writing changes
   lint [files]       Lint markdown files (no formatting)
   nuclear [files]    🚀 Run ALL linters and fixers (remark + ESLint)
+  autoformat [files] 🤖 Convert plain text to structured markdown
   init               Create .remarkrc.js configuration file
   setup              Create example content structure
 
@@ -68,6 +70,15 @@ OPTIONS:
   --quiet, -q        Suppress output except errors
   --glob <pattern>   Use glob pattern (e.g., "**/*.md")
   --nuclear          Run complete lint+fix workflow (alias for nuclear command)
+  
+AUTOFORMAT OPTIONS:
+  --plugins <dir>    Load custom formatting plugins
+  --recursive, -r    Process directories recursively
+  --semantic         Apply semantic line breaks at sentence boundaries
+  --smart-quotes     Convert straight quotes to curly quotes
+  --ellipsis         Convert ... to ellipsis character (…)
+  --width <n>        Set line wrap width (default: 88)
+  --auto             Enable all smart features (semantic + quotes + ellipsis)
 
 EXAMPLES:
   # Format all markdown files in current directory
@@ -85,6 +96,13 @@ EXAMPLES:
   # 🚀 Nuclear option - fix EVERYTHING
   markdownfix nuclear
   markdownfix format --nuclear
+
+  # 🤖 Auto-format plain text to markdown
+  markdownfix autoformat unformatted.txt
+  markdownfix autoformat --glob "**/*.txt"
+  markdownfix autoformat --auto unformatted.txt
+  markdownfix autoformat --semantic --smart-quotes file.md
+  markdownfix autoformat --plugins ./my-plugins --width 100
 
   # Initialize configuration
   markdownfix init
@@ -642,6 +660,116 @@ async function main() {
       }
       const result = await runNuclearMode(files, { quiet: options.quiet });
       process.exit(result.success ? 0 : 1);
+      break;
+    }
+
+    case 'autoformat': {
+      // Parse autoformat-specific options
+      const pluginsDir = commandArgs.includes('--plugins') 
+        ? commandArgs[commandArgs.indexOf('--plugins') + 1]
+        : null;
+      const recursive = commandArgs.includes('--recursive') || commandArgs.includes('-r');
+      
+      // Parse typography and formatting options
+      const autoMode = commandArgs.includes('--auto');
+      const semanticBreaks = autoMode || commandArgs.includes('--semantic');
+      const smartQuotes = autoMode || commandArgs.includes('--smart-quotes');
+      const ellipsis = autoMode || commandArgs.includes('--ellipsis');
+      
+      // Parse width option
+      let wrapWidth = 88;
+      const widthIndex = commandArgs.indexOf('--width');
+      if (widthIndex !== -1 && commandArgs[widthIndex + 1]) {
+        wrapWidth = parseInt(commandArgs[widthIndex + 1], 10);
+      }
+
+      // Get files to process
+      let filesToProcess = [];
+      if (options.glob) {
+        filesToProcess = await glob(options.glob, { ignore: ['node_modules/**', '.git/**'] });
+      } else if (fileArgs.length > 0) {
+        // Check if arguments are files or directories
+        for (const arg of fileArgs) {
+          try {
+            const stat = await fs.stat(arg);
+            if (stat.isDirectory()) {
+              if (recursive) {
+                const pattern = path.join(arg, '**/*.{txt,md,mdx,mdc,mdd}');
+                const dirFiles = await glob(pattern, { ignore: ['node_modules/**', '.git/**'] });
+                filesToProcess.push(...dirFiles);
+              } else {
+                console.error(`Error: ${arg} is a directory. Use --recursive to process directories.`);
+                process.exit(1);
+              }
+            } else {
+              filesToProcess.push(arg);
+            }
+          } catch (error) {
+            console.error(`Error: Cannot access ${arg}`);
+            process.exit(1);
+          }
+        }
+      } else {
+        // Default: find all text and markdown files
+        filesToProcess = await glob('**/*.{txt,md,mdx,mdc,mdd}', { 
+          ignore: ['node_modules/**', '.git/**'] 
+        });
+      }
+
+      if (filesToProcess.length === 0) {
+        console.log('No files found to auto-format');
+        return;
+      }
+
+      if (!options.quiet) {
+        console.log(`\n🤖 AUTO-FORMAT MODE\n`);
+        console.log(`Processing ${filesToProcess.length} file(s)...\n`);
+      }
+
+      // Initialize auto-formatter with options
+      const formatter = new AutoFormatter({ 
+        aggressive: true,
+        semanticBreaks,
+        smartQuotes,
+        ellipsis,
+        wrapWidth
+      });
+
+      // Load plugins if specified
+      if (pluginsDir) {
+        try {
+          await formatter.loadPlugins(pluginsDir);
+          if (!options.quiet) {
+            console.log(`✓ Loaded plugins from ${pluginsDir}\n`);
+          }
+        } catch (error) {
+          console.error(`⚠️  Could not load plugins from ${pluginsDir}:`, error.message);
+        }
+      }
+
+      // Format files
+      const results = await formatter.formatFiles(filesToProcess, { 
+        write: true, 
+        quiet: options.quiet 
+      });
+
+      // Summary
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      if (!options.quiet) {
+        console.log(`\n${'═'.repeat(60)}`);
+        console.log('AUTO-FORMAT SUMMARY');
+        console.log('═'.repeat(60));
+        console.log(`✓ Successfully formatted: ${successful} file(s)`);
+        if (failed > 0) {
+          console.log(`✗ Failed: ${failed} file(s)`);
+        }
+        console.log('═'.repeat(60));
+        console.log();
+      }
+
+      process.exit(failed > 0 ? 1 : 0);
       break;
     }
 

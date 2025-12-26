@@ -31,10 +31,9 @@ npx markdownfix --help
 
 ```bash
 # Format all markdown files in current directory
-markdownfix format
+# markdownfix
 
-# Check formatting without writing changes
-markdownfix check
+A comprehensive markdown linting, formatting, and auto-conversion tool that combines the power of remark with ESLint for code blocks, plus intelligent plain-text-to-markdown conversion.
 
 # Lint files for issues
 markdownfix lint
