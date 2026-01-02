@@ -7,9 +7,9 @@
 // Try to load MDD plugins if available
 let mddPlugins = [];
 try {
-  const mddDocStructure = await import('@entro314labs/mdd/plugins/remark-mdd-document-structure.js');
-  const mddTextFormatting = await import('@entro314labs/mdd/plugins/remark-mdd-text-formatting.js');
-  const mddMdxConditional = await import('@entro314labs/mdd/plugins/remark-mdx-conditional.js');
+  const mddDocStructure = await import('@markdownkit/mdd/plugins/remark-mdd-document-structure.js');
+  const mddTextFormatting = await import('@markdownkit/mdd/plugins/remark-mdd-text-formatting.js');
+  const mddMdxConditional = await import('@markdownkit/mdd/plugins/remark-mdx-conditional.js');
 
   mddPlugins = [
     mddMdxConditional.default,

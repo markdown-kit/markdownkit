@@ -1,15 +1,15 @@
 {
-  "name": "@entro314labs/markdownfix",
+  "name": "@markdownkit/markdownkit",
   "version": "0.1.2",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/entro314-labs/markdownfix.git"
+    "url": "git+https://github.com/markdown-kit/markdownkit.git"
   },
-  "homepage": "https://github.com/entro314-labs/markdownfix#readme",
+  "homepage": "https://github.com/markdown-kit/markdownkit#readme",
   "bugs": {
-    "url": "https://github.com/entro314-labs/markdownfix/issues"
+    "url": "https://github.com/markdown-kit/markdownkit/issues"
   },
   "files": [
     ".remarkrc.js",
@@ -17,14 +17,16 @@
     "eslint.config.js",
     "setup.js",
     "cli.js",
+    "text-processor.js",
+    "autoformat.js",
     "README.md",
     "ESLINT_INTEGRATION.md",
     "LICENSE"
   ],
   "bin": {
-    "markdownfix": "./cli.js",
-    "mdfix": "./cli.js",
-    "markdownfix-setup": "./setup.js"
+    "markdownkit": "./cli.js",
+    "mdkit": "./cli.js",
+    "markdownkit-setup": "./setup.js"
   },
   "scripts": {
     "lint": "remark . --quiet --frail",
@@ -50,7 +52,7 @@
     "remark",
     "gfm",
     "unified",
-    "markdownfix",
+    "markdownkit",
     "markdown-linter",
     "markdown-components",
     "nuxt-content",
@@ -68,18 +70,18 @@
   "dependencies": {
     "@adobe/remark-gridtables": "^3.0.16",
     "@code-dot-org/remark-plugins": "^2.0.1",
-    "@entro314labs/remark-mdd": "^0.0.20",
+    "@markdownkit/remark-mdd": "workspace:../remark-mdd",
     "@theguild/remark-mermaid": "^0.3.0",
     "eslint": "^9.39.2",
     "eslint-plugin-mdx": "^3.6.2",
     "eslint-plugin-react": "^7.37.5",
-    "fumadocs-docgen": "^3.0.4",
+    "fumadocs-docgen": "^3.0.5",
     "glob": "^13.0.0",
     "js-yaml": "^4.1.1",
     "rehype-remark": "^10.0.1",
     "remark": "latest",
     "remark-directive": "^4.0.0",
-    "remark-docx": "^0.3.19",
+    "remark-docx": "^0.3.22",
     "remark-emoji": "^5.0.2",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
@@ -133,6 +135,11 @@
     "remark-toc": "^9.0.0",
     "remark-typography": "^0.7.0",
     "remark-validate-links": "^13.1.0",
+    "retext": "^9.0.0",
+    "retext-english": "^5.0.0",
+    "retext-sentence-spacing": "^6.0.0",
+    "retext-smartypants": "^6.2.0",
+    "retext-stringify": "^4.0.0",
     "to-vfile": "^8.0.0",
     "unified-lint-rule": "^3.0.1",
     "unist-util-visit": "^5.0.0",

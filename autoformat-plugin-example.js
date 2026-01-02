@@ -1,11 +1,11 @@
 /**
- * Example plugin for mdfix autoformat
+ * Example plugin for mdkit autoformat
  * 
  * This shows how to create custom formatting rules for your specific needs.
  * 
  * To use this plugin:
  * 1. Copy this file to a plugins directory (e.g., ./my-plugins/)
- * 2. Run: mdfix autoformat --plugins ./my-plugins file.txt
+ * 2. Run: mdkit autoformat --plugins ./my-plugins file.txt
  * 
  * You can create multiple plugin files in the same directory.
  */

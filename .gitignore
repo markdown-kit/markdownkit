@@ -81,3 +81,6 @@ content/docs/getting-started.md
 content/guides/style-guide.md
 PUBLISHING.md
 ESLINT_INTEGRATION.md
+enhancement.md
+unformatted-text.md
+formatted-text.md

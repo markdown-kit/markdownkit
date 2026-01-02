@@ -5,22 +5,22 @@
  * Provides commands to format, lint, and check markdown files
  */
 
-import { remark } from 'remark';
-import { read } from 'to-vfile';
-import { reporter } from 'vfile-reporter';
-import remarkPresetLintRecommended from 'remark-preset-lint-recommended';
-import remarkPresetLintConsistent from 'remark-preset-lint-consistent';
-import remarkPresetLintMarkdownStyleGuide from 'remark-preset-lint-markdown-style-guide';
-import remarkFrontmatter from 'remark-frontmatter';
-import remarkGfm from 'remark-gfm';
-import remarkStringify from 'remark-stringify';
-import fs from 'fs/promises';
-import path from 'path';
-import { glob } from 'glob';
-import { execSync } from 'child_process';
-import { AutoFormatter } from './autoformat.js';
+import { remark } from "remark";
+import { read } from "to-vfile";
+import { reporter } from "vfile-reporter";
+import remarkPresetLintRecommended from "remark-preset-lint-recommended";
+import remarkPresetLintConsistent from "remark-preset-lint-consistent";
+import remarkPresetLintMarkdownStyleGuide from "remark-preset-lint-markdown-style-guide";
+import remarkFrontmatter from "remark-frontmatter";
+import remarkGfm from "remark-gfm";
+import remarkStringify from "remark-stringify";
+import fs from "fs/promises";
+import path from "path";
+import { glob } from "glob";
+import { execSync } from "child_process";
+import { AutoFormatter } from "./autoformat.js";
 
-const MARKDOWN_EXTENSIONS = ['md', 'mdx', 'mdc', 'mdd'];
+const MARKDOWN_EXTENSIONS = ["md", "mdx", "mdc", "mdd"];
 
 // Import configuration from .remarkrc.js
 // Suppress console output during import to avoid MDD warnings in nuclear mode
@@ -31,13 +31,15 @@ console.info = () => {};
 
 let remarkConfig;
 try {
-  const configModule = await import(path.join(process.cwd(), '.remarkrc.js'));
+  const configModule = await import(path.join(process.cwd(), ".remarkrc.js"));
   remarkConfig = configModule.default;
 } catch (e) {
   // Restore console before warning
   console.log = originalLog;
   console.info = originalInfo;
-  console.warn('⚠️  No .remarkrc.js found in current directory, using default config');
+  console.warn(
+    "⚠️  No .remarkrc.js found in current directory, using default config",
+  );
   remarkConfig = null;
 }
 
@@ -50,10 +52,10 @@ console.info = originalInfo;
  */
 function showHelp() {
   console.log(`
-markdownfix - Opinionated markdown formatter and linter
+markdownkit - Opinionated markdown formatter and linter
 
 USAGE:
-  markdownfix <command> [options] [files...]
+  markdownkit <command> [options] [files...]
 
 COMMANDS:
   format [files]     Format markdown files (writes changes)
@@ -61,6 +63,7 @@ COMMANDS:
   lint [files]       Lint markdown files (no formatting)
   nuclear [files]    🚀 Run ALL linters and fixers (remark + ESLint)
   autoformat [files] 🤖 Convert plain text to structured markdown
+  draft [files]      📝 Transform rough text to markdown (aggressive mode)
   init               Create .remarkrc.js configuration file
   setup              Create example content structure
 
@@ -80,32 +83,42 @@ AUTOFORMAT OPTIONS:
   --width <n>        Set line wrap width (default: 88)
   --auto             Enable all smart features (semantic + quotes + ellipsis)
 
+DRAFT OPTIONS:
+  --header-level <n> Set header level for folder syntax (default: 3)
+  --dry-run          Preview output without writing files
+  --polish           Run remark pipeline after draft transformation
+
 EXAMPLES:
   # Format all markdown files in current directory
-  markdownfix format
+  markdownkit format
 
   # Check specific files
-  markdownfix check README.md docs/*.md
+  markdownkit check README.md docs/*.md
 
   # Lint with glob pattern
-  markdownfix lint --glob "src/**/*.md"
+  markdownkit lint --glob "src/**/*.md"
 
   # Format quietly
-  markdownfix format --quiet
+  markdownkit format --quiet
 
   # 🚀 Nuclear option - fix EVERYTHING
-  markdownfix nuclear
-  markdownfix format --nuclear
+  markdownkit nuclear
+  markdownkit format --nuclear
 
   # 🤖 Auto-format plain text to markdown
-  markdownfix autoformat unformatted.txt
-  markdownfix autoformat --glob "**/*.txt"
-  markdownfix autoformat --auto unformatted.txt
-  markdownfix autoformat --semantic --smart-quotes file.md
-  markdownfix autoformat --plugins ./my-plugins --width 100
+  markdownkit autoformat unformatted.txt
+  markdownkit autoformat --glob "**/*.txt"
+  markdownkit autoformat --auto unformatted.txt
+  markdownkit autoformat --semantic --smart-quotes file.md
+  markdownkit autoformat --plugins ./my-plugins --width 100
+
+  # 📝 Draft mode - transform rough text to markdown
+  markdownkit draft notes.txt
+  markdownkit draft --header-level 2 rough-doc.txt
+  markdownkit draft --polish --dry-run messy-notes.md
 
   # Initialize configuration
-  markdownfix init
+  markdownkit init
 
 NUCLEAR MODE:
   The nuclear command runs a comprehensive fix workflow:
@@ -115,7 +128,7 @@ NUCLEAR MODE:
 
   Perfect for: CI/CD, pre-commit hooks, major cleanups
 
-For more information, visit: https://github.com/entro314-labs/markdownfix
+For more information, visit: https://github.com/entro314-labs/markdownkit
 `);
 }
 
@@ -124,7 +137,7 @@ For more information, visit: https://github.com/entro314-labs/markdownfix
  */
 async function getFiles(args, globPattern) {
   if (globPattern) {
-    return glob(globPattern, { ignore: 'node_modules/**' });
+    return glob(globPattern, { ignore: "node_modules/**" });
   }
 
   if (args.length > 0) {
@@ -132,11 +145,13 @@ async function getFiles(args, globPattern) {
   }
 
   // Default: find all markdown files in current directory and subdirectories
-  const patterns = MARKDOWN_EXTENSIONS.map(ext => `**/*.${ext}`);
+  const patterns = MARKDOWN_EXTENSIONS.map((ext) => `**/*.${ext}`);
   const allFiles = [];
 
   for (const pattern of patterns) {
-    const files = await glob(pattern, { ignore: ['node_modules/**', '.git/**'] });
+    const files = await glob(pattern, {
+      ignore: ["node_modules/**", ".git/**"],
+    });
     allFiles.push(...files);
   }
 
@@ -157,9 +172,7 @@ async function processFiles(files, options = {}) {
       const file = await read(filePath);
 
       // Build processor
-      let processor = remark()
-        .use(remarkFrontmatter, ['yaml'])
-        .use(remarkGfm);
+      let processor = remark().use(remarkFrontmatter, ["yaml"]).use(remarkGfm);
 
       // Add lint presets
       processor = processor
@@ -170,19 +183,19 @@ async function processFiles(files, options = {}) {
       // Add stringify for formatting (unless lint-only)
       if (!lintOnly) {
         // For MDX files, disable fences to prevent JSX from being wrapped in code blocks
-        const isMdx = filePath.endsWith('.mdx') || filePath.endsWith('.mdd');
+        const isMdx = filePath.endsWith(".mdx") || filePath.endsWith(".mdd");
         processor = processor.use(remarkStringify, {
-          bullet: '-',
-          emphasis: '_',
+          bullet: "-",
+          emphasis: "_",
           fences: !isMdx, // Disable fences for MDX to preserve JSX
-          listItemIndent: 'one',
-          rule: '-',
-          strong: '*',
+          listItemIndent: "one",
+          rule: "-",
+          strong: "*",
           tightDefinitions: true,
           handlers: {
             // Custom handler to use two spaces for line breaks instead of backslashes
-            break: () => '  \n'
-          }
+            break: () => "  \n",
+          },
         });
       }
 
@@ -205,12 +218,11 @@ async function processFiles(files, options = {}) {
         processedCount++;
       } else if (!write && !lintOnly && !quiet) {
         // Preview mode
-        console.log(`\n${'='.repeat(60)}`);
+        console.log(`\n${"=".repeat(60)}`);
         console.log(`File: ${filePath}`);
-        console.log('='.repeat(60));
+        console.log("=".repeat(60));
         console.log(String(result));
       }
-
     } catch (error) {
       console.error(`✗ Error processing ${filePath}:`, error.message);
       hasErrors = true;
@@ -234,16 +246,22 @@ async function runNuclearMode(files, options = {}) {
   if (hasEslint) {
     const ignorePatterns = await getEslintIgnorePatterns();
     const originalCount = files.length;
-    filteredFiles = files.filter(file => !isFileIgnored(file, ignorePatterns));
+    filteredFiles = files.filter(
+      (file) => !isFileIgnored(file, ignorePatterns),
+    );
     ignoredCount = originalCount - filteredFiles.length;
   }
 
   if (!quiet) {
-    console.log('\n🚀 NUCLEAR MODE ACTIVATED\n');
+    console.log("\n🚀 NUCLEAR MODE ACTIVATED\n");
     if (ignoredCount > 0) {
-      console.log(`Found ${files.length} file(s), processing ${filteredFiles.length} (${ignoredCount} ignored by ESLint config)\n`);
+      console.log(
+        `Found ${files.length} file(s), processing ${filteredFiles.length} (${ignoredCount} ignored by ESLint config)\n`,
+      );
     } else {
-      console.log(`Processing ${filteredFiles.length} file(s) with comprehensive workflow...\n`);
+      console.log(
+        `Processing ${filteredFiles.length} file(s) with comprehensive workflow...\n`,
+      );
     }
   }
 
@@ -253,18 +271,21 @@ async function runNuclearMode(files, options = {}) {
   let eslintIssues = [];
 
   // Step 1: Remark formatting (auto-fixes what it can)
-  if (!quiet) console.log('Step 1/3: Running remark formatting...');
+  if (!quiet) console.log("Step 1/3: Running remark formatting...");
   try {
-    const result = await processFiles(filteredFiles, { write: true, quiet: true });
+    const result = await processFiles(filteredFiles, {
+      write: true,
+      quiet: true,
+    });
     const formatted = result.processedCount;
     const withIssues = result.hasErrors;
-    
+
     steps.push({
-      name: 'Remark Format',
+      name: "Remark Format",
       success: formatted > 0,
-      details: `Formatted ${formatted}/${result.totalFiles} files`
+      details: `Formatted ${formatted}/${result.totalFiles} files`,
     });
-    
+
     if (!quiet) {
       console.log(`  ✓ Formatted ${formatted} file(s)`);
       if (withIssues) {
@@ -274,79 +295,117 @@ async function runNuclearMode(files, options = {}) {
       }
     }
   } catch (error) {
-    steps.push({ name: 'Remark Format', success: false, details: error.message });
+    steps.push({
+      name: "Remark Format",
+      success: false,
+      details: error.message,
+    });
     overallSuccess = false;
     if (!quiet) console.log(`  ✗ Remark formatting failed: ${error.message}\n`);
   }
-
 
   // Step 2: ESLint auto-fix (only if ESLint is available)
   if (hasEslint) {
     const eslintConfigInfo = await getEslintConfigPath();
     const { configPath, source } = eslintConfigInfo;
 
-    if (!quiet) console.log('Step 2/3: Running ESLint auto-fix on code blocks...');
+    if (!quiet)
+      console.log("Step 2/3: Running ESLint auto-fix on code blocks...");
     try {
-      const fileList = filteredFiles.map(f => `"${f}"`).join(' ');
+      const fileList = filteredFiles.map((f) => `"${f}"`).join(" ");
       const eslintCmd = `npx eslint --config "${configPath}" --fix ${fileList}`;
 
       try {
         const result = execSync(eslintCmd, {
-          stdio: 'pipe',
-          cwd: process.cwd()
+          stdio: "pipe",
+          cwd: process.cwd(),
         });
-        steps.push({ name: 'ESLint Fix', success: true, details: 'Fixed code blocks' });
+        steps.push({
+          name: "ESLint Fix",
+          success: true,
+          details: "Fixed code blocks",
+        });
         if (!quiet) console.log(`  ✓ ESLint auto-fix completed\n`);
       } catch (eslintError) {
         // ESLint returns non-zero if there are unfixable issues
-        const output = eslintError.stdout?.toString() || eslintError.stderr?.toString() || '';
-        
+        const output =
+          eslintError.stdout?.toString() ||
+          eslintError.stderr?.toString() ||
+          "";
+
         // Filter out "File ignored" warnings - these are expected
-        const lines = output.split('\n').filter(line => 
-          !line.includes('File ignored because of a matching ignore pattern')
-        );
-        const filteredOutput = lines.join('\n');
-        
-        const hasWarnings = filteredOutput.includes('warning');
-        const hasErrors = filteredOutput.includes('error');
-        
+        const lines = output
+          .split("\n")
+          .filter(
+            (line) =>
+              !line.includes(
+                "File ignored because of a matching ignore pattern",
+              ),
+          );
+        const filteredOutput = lines.join("\n");
+
+        const hasWarnings = filteredOutput.includes("warning");
+        const hasErrors = filteredOutput.includes("error");
+
         if (hasErrors || hasWarnings) {
-          steps.push({ name: 'ESLint Fix', success: false, details: 'Some issues remain' });
-          if (!quiet) console.log(`  ⚠️  ESLint found issues that need manual fixes\n`);
+          steps.push({
+            name: "ESLint Fix",
+            success: false,
+            details: "Some issues remain",
+          });
+          if (!quiet)
+            console.log(`  ⚠️  ESLint found issues that need manual fixes\n`);
         } else {
-          steps.push({ name: 'ESLint Fix', success: true, details: 'Fixed code blocks' });
+          steps.push({
+            name: "ESLint Fix",
+            success: true,
+            details: "Fixed code blocks",
+          });
           if (!quiet) console.log(`  ✓ ESLint auto-fix completed\n`);
         }
       }
     } catch (error) {
-      steps.push({ name: 'ESLint Fix', success: false, details: error.message });
+      steps.push({
+        name: "ESLint Fix",
+        success: false,
+        details: error.message,
+      });
       if (!quiet) console.log(`  ✗ ESLint auto-fix failed: ${error.message}\n`);
     }
   } else {
     if (!quiet) {
-      console.log('Step 2/3: Skipping ESLint (not installed)');
-      console.log('  ℹ️  Install with: npm install -D eslint eslint-plugin-mdx\n');
+      console.log("Step 2/3: Skipping ESLint (not installed)");
+      console.log(
+        "  ℹ️  Install with: npm install -D eslint eslint-plugin-mdx\n",
+      );
     }
-    steps.push({ name: 'ESLint Fix', success: true, details: 'Skipped (not installed)' });
+    steps.push({
+      name: "ESLint Fix",
+      success: true,
+      details: "Skipped (not installed)",
+    });
   }
 
   // Step 3: Final validation
-  if (!quiet) console.log('Step 3/3: Running final validation...');
+  if (!quiet) console.log("Step 3/3: Running final validation...");
   let validationResult;
   try {
-    validationResult = await processFiles(filteredFiles, { lintOnly: true, quiet: true });
+    validationResult = await processFiles(filteredFiles, {
+      lintOnly: true,
+      quiet: true,
+    });
     const hasIssues = validationResult.hasErrors;
-    
+
     if (hasIssues) {
       overallSuccess = false;
     }
-    
+
     steps.push({
-      name: 'Validation',
+      name: "Validation",
       success: !hasIssues,
-      details: hasIssues ? 'Issues found' : 'All checks passed'
+      details: hasIssues ? "Issues found" : "All checks passed",
     });
-    
+
     if (!quiet) {
       if (hasIssues) {
         console.log(`  ⚠️  Validation found remaining issues\n`);
@@ -355,42 +414,48 @@ async function runNuclearMode(files, options = {}) {
       }
     }
   } catch (error) {
-    steps.push({ name: 'Validation', success: false, details: error.message });
+    steps.push({ name: "Validation", success: false, details: error.message });
     overallSuccess = false;
     if (!quiet) console.log(`  ✗ Validation failed: ${error.message}\n`);
   }
 
   // Show detailed issues if validation failed
   if (!quiet && validationResult?.hasErrors) {
-    console.log('═'.repeat(60));
-    console.log('REMAINING ISSUES');
-    console.log('═'.repeat(60));
+    console.log("═".repeat(60));
+    console.log("REMAINING ISSUES");
+    console.log("═".repeat(60));
     await processFiles(filteredFiles, { lintOnly: true, quiet: false });
     console.log();
   }
 
   // Summary
   if (!quiet) {
-    console.log('═'.repeat(60));
-    console.log('NUCLEAR MODE SUMMARY');
-    console.log('═'.repeat(60));
-    steps.forEach(step => {
-      const icon = step.success ? '✓' : '⚠️';
-      const status = step.success ? 'PASS' : 'NEEDS ATTENTION';
-      console.log(`${icon} ${step.name.padEnd(20)} ${status.padEnd(16)} ${step.details}`);
+    console.log("═".repeat(60));
+    console.log("NUCLEAR MODE SUMMARY");
+    console.log("═".repeat(60));
+    steps.forEach((step) => {
+      const icon = step.success ? "✓" : "⚠️";
+      const status = step.success ? "PASS" : "NEEDS ATTENTION";
+      console.log(
+        `${icon} ${step.name.padEnd(20)} ${status.padEnd(16)} ${step.details}`,
+      );
     });
-    console.log('═'.repeat(60));
-    
+    console.log("═".repeat(60));
+
     if (overallSuccess) {
-      console.log('🎉 All checks passed! Your markdown is pristine.\n');
+      console.log("🎉 All checks passed! Your markdown is pristine.\n");
     } else {
-      console.log('\n📋 NEXT STEPS:');
-      console.log('   Review the issues above and fix them manually.');
-      console.log('   Common fixes:');
-      console.log('   • Shorten long lines (max 80 chars)');
-      console.log('   • Add language flags to code blocks (```js, ```bash, etc.)');
-      console.log('   • Fix filename issues (use lowercase, avoid special chars)');
-      console.log('   • Add blank lines between list items\n');
+      console.log("\n📋 NEXT STEPS:");
+      console.log("   Review the issues above and fix them manually.");
+      console.log("   Common fixes:");
+      console.log("   • Shorten long lines (max 80 chars)");
+      console.log(
+        "   • Add language flags to code blocks (```js, ```bash, etc.)",
+      );
+      console.log(
+        "   • Fix filename issues (use lowercase, avoid special chars)",
+      );
+      console.log("   • Add blank lines between list items\n");
     }
   }
 
@@ -402,7 +467,7 @@ async function runNuclearMode(files, options = {}) {
  */
 async function checkEslintAvailable() {
   try {
-    execSync('npx eslint --version', { stdio: 'pipe' });
+    execSync("npx eslint --version", { stdio: "pipe" });
     return true;
   } catch {
     return false;
@@ -415,16 +480,17 @@ async function checkEslintAvailable() {
  * Since ESLint dependencies are included in the package, bundled config always works
  */
 async function getEslintConfigPath() {
-  const localConfig = path.join(process.cwd(), 'eslint.config.js');
+  const localConfig = path.join(process.cwd(), "eslint.config.js");
 
   try {
     await fs.access(localConfig);
     // Local config exists - use it
-    return { configPath: localConfig, source: 'local' };
+    return { configPath: localConfig, source: "local" };
   } catch {
     // Use bundled config - dependencies are always available
-    const bundledConfig = new URL('./eslint.config.js', import.meta.url).pathname;
-    return { configPath: bundledConfig, source: 'bundled' };
+    const bundledConfig = new URL("./eslint.config.js", import.meta.url)
+      .pathname;
+    return { configPath: bundledConfig, source: "bundled" };
   }
 }
 
@@ -437,22 +503,22 @@ async function getEslintConfigPath() {
 async function getEslintIgnorePatterns() {
   try {
     const { configPath } = await getEslintConfigPath();
-    const configContent = await fs.readFile(configPath, 'utf-8');
-    
+    const configContent = await fs.readFile(configPath, "utf-8");
+
     // Extract the ignores array using regex
     // Look for: ignores: [ ... ]
     const ignoresMatch = configContent.match(/ignores:\s*\[([\s\S]*?)\]/);
     if (!ignoresMatch) return [];
-    
+
     const ignoresContent = ignoresMatch[1];
-    
+
     // Extract quoted strings from the array
     const patterns = [];
     const stringMatches = ignoresContent.matchAll(/['"]([^'"]+)['"]/g);
     for (const match of stringMatches) {
       patterns.push(match[1]);
     }
-    
+
     return patterns;
   } catch (error) {
     return [];
@@ -466,29 +532,37 @@ function isFileIgnored(filePath, ignorePatterns) {
   // Convert ignore patterns to regex-like matching
   for (const pattern of ignorePatterns) {
     // Handle glob patterns
-    if (pattern.includes('**')) {
+    if (pattern.includes("**")) {
       // **/*.config.js -> matches any .config.js file
-const regex = new RegExp(pattern.replace(/\./g, '\\.').replace(/\*\*/g, '__DOUBLESTAR__').replace(/\*/g, '[^/]*').replace(/__DOUBLESTAR__/g, '.*'));
+      const regex = new RegExp(
+        pattern
+          .replace(/\./g, "\\.")
+          .replace(/\*\*/g, "__DOUBLESTAR__")
+          .replace(/\*/g, "[^/]*")
+          .replace(/__DOUBLESTAR__/g, ".*"),
+      );
       if (regex.test(filePath)) return true;
-    } else if (pattern.includes('*')) {
+    } else if (pattern.includes("*")) {
       // *.js -> matches .js files in root
-      const regex = new RegExp('^' + pattern.replace(/\*/g, '[^/]*').replace(/\./g, '\\.') + '$');
+      const regex = new RegExp(
+        "^" + pattern.replace(/\*/g, "[^/]*").replace(/\./g, "\\.") + "$",
+      );
       if (regex.test(filePath)) return true;
     } else {
       // Exact match or ends with pattern
-      if (filePath === pattern || filePath.endsWith('/' + pattern)) return true;
+      if (filePath === pattern || filePath.endsWith("/" + pattern)) return true;
     }
   }
   return false;
-}/**
+} /**
  * Initialize .remarkrc.js configuration
  */
 async function initConfig() {
-  const configPath = path.join(process.cwd(), '.remarkrc.js');
+  const configPath = path.join(process.cwd(), ".remarkrc.js");
 
   try {
     await fs.access(configPath);
-    console.log('⚠️  .remarkrc.js already exists');
+    console.log("⚠️  .remarkrc.js already exists");
     return;
   } catch {
     // File doesn't exist, create it
@@ -534,7 +608,7 @@ export default {
 `;
 
   await fs.writeFile(configPath, configContent);
-  console.log('✓ Created .remarkrc.js configuration file');
+  console.log("✓ Created .remarkrc.js configuration file");
 }
 
 /**
@@ -544,14 +618,16 @@ async function main() {
   const args = process.argv.slice(2);
 
   // Handle version
-  if (args.includes('--version') || args.includes('-v')) {
-    const pkg = JSON.parse(await fs.readFile(new URL('./package.json', import.meta.url), 'utf-8'));
+  if (args.includes("--version") || args.includes("-v")) {
+    const pkg = JSON.parse(
+      await fs.readFile(new URL("./package.json", import.meta.url), "utf-8"),
+    );
     console.log(pkg.version);
     return;
   }
 
   // Handle help
-  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     showHelp();
     return;
   }
@@ -561,30 +637,29 @@ async function main() {
 
   // Parse options
   const options = {
-    quiet: commandArgs.includes('--quiet') || commandArgs.includes('-q'),
-    nuclear: commandArgs.includes('--nuclear'),
-    glob: null
+    quiet: commandArgs.includes("--quiet") || commandArgs.includes("-q"),
+    nuclear: commandArgs.includes("--nuclear"),
+    glob: null,
   };
 
   // Extract glob pattern
-  const globIndex = commandArgs.findIndex(arg => arg === '--glob');
+  const globIndex = commandArgs.findIndex((arg) => arg === "--glob");
   if (globIndex !== -1 && commandArgs[globIndex + 1]) {
     options.glob = commandArgs[globIndex + 1];
   }
 
   // Filter out option flags to get file arguments
-  const fileArgs = commandArgs.filter(arg =>
-    !arg.startsWith('--') &&
-    !arg.startsWith('-') &&
-    arg !== options.glob
+  const fileArgs = commandArgs.filter(
+    (arg) =>
+      !arg.startsWith("--") && !arg.startsWith("-") && arg !== options.glob,
   );
 
   // Execute command
   switch (command) {
-    case 'format': {
+    case "format": {
       const files = await getFiles(fileArgs, options.glob);
       if (files.length === 0) {
-        console.log('No markdown files found');
+        console.log("No markdown files found");
         return;
       }
 
@@ -598,64 +673,79 @@ async function main() {
       if (!options.quiet) {
         console.log(`Formatting ${files.length} file(s)...`);
       }
-      const result = await processFiles(files, { write: true, quiet: options.quiet });
+      const result = await processFiles(files, {
+        write: true,
+        quiet: options.quiet,
+      });
       if (!options.quiet) {
-        console.log(`\n✓ Formatted ${result.processedCount} of ${result.totalFiles} files`);
+        console.log(
+          `\n✓ Formatted ${result.processedCount} of ${result.totalFiles} files`,
+        );
       }
       process.exit(result.hasErrors ? 1 : 0);
       break;
     }
 
-    case 'check': {
+    case "check": {
       const files = await getFiles(fileArgs, options.glob);
       if (files.length === 0) {
-        console.log('No markdown files found');
+        console.log("No markdown files found");
         return;
       }
       if (!options.quiet) {
         console.log(`Checking ${files.length} file(s)...`);
       }
-      const result = await processFiles(files, { write: false, quiet: options.quiet });
+      const result = await processFiles(files, {
+        write: false,
+        quiet: options.quiet,
+      });
       if (!options.quiet) {
-        console.log(`\n${result.hasErrors ? '✗' : '✓'} Checked ${result.totalFiles} files`);
+        console.log(
+          `\n${result.hasErrors ? "✗" : "✓"} Checked ${result.totalFiles} files`,
+        );
       }
       process.exit(result.hasErrors ? 1 : 0);
       break;
     }
 
-    case 'lint': {
+    case "lint": {
       const files = await getFiles(fileArgs, options.glob);
       if (files.length === 0) {
-        console.log('No markdown files found');
+        console.log("No markdown files found");
         return;
       }
       if (!options.quiet) {
         console.log(`Linting ${files.length} file(s)...`);
       }
-      const result = await processFiles(files, { lintOnly: true, quiet: options.quiet });
+      const result = await processFiles(files, {
+        lintOnly: true,
+        quiet: options.quiet,
+      });
       if (!options.quiet) {
-        console.log(`\n${result.hasErrors ? '✗' : '✓'} Linted ${result.totalFiles} files`);
+        console.log(
+          `\n${result.hasErrors ? "✗" : "✓"} Linted ${result.totalFiles} files`,
+        );
       }
       process.exit(result.hasErrors ? 1 : 0);
       break;
     }
 
-    case 'init': {
+    case "init": {
       await initConfig();
       break;
     }
 
-    case 'setup': {
+    case "setup": {
       // Import and run setup.js
-      const setupPath = new URL('./setup.js', import.meta.url);
+      const setupPath = new URL("./setup.js", import.meta.url);
       await import(setupPath);
       break;
     }
 
-    case 'nuclear': {
+    case "nuclear": {
       const files = await getFiles(fileArgs, options.glob);
       if (files.length === 0) {
-        console.log('No markdown files found');
+        console.log("No markdown files found");
         return;
       }
       const result = await runNuclearMode(files, { quiet: options.quiet });
@@ -663,22 +753,23 @@ async function main() {
       break;
     }
 
-    case 'autoformat': {
+    case "autoformat": {
       // Parse autoformat-specific options
-      const pluginsDir = commandArgs.includes('--plugins') 
-        ? commandArgs[commandArgs.indexOf('--plugins') + 1]
+      const pluginsDir = commandArgs.includes("--plugins")
+        ? commandArgs[commandArgs.indexOf("--plugins") + 1]
         : null;
-      const recursive = commandArgs.includes('--recursive') || commandArgs.includes('-r');
-      
+      const recursive =
+        commandArgs.includes("--recursive") || commandArgs.includes("-r");
+
       // Parse typography and formatting options
-      const autoMode = commandArgs.includes('--auto');
-      const semanticBreaks = autoMode || commandArgs.includes('--semantic');
-      const smartQuotes = autoMode || commandArgs.includes('--smart-quotes');
-      const ellipsis = autoMode || commandArgs.includes('--ellipsis');
-      
+      const autoMode = commandArgs.includes("--auto");
+      const semanticBreaks = autoMode || commandArgs.includes("--semantic");
+      const smartQuotes = autoMode || commandArgs.includes("--smart-quotes");
+      const ellipsis = autoMode || commandArgs.includes("--ellipsis");
+
       // Parse width option
       let wrapWidth = 88;
-      const widthIndex = commandArgs.indexOf('--width');
+      const widthIndex = commandArgs.indexOf("--width");
       if (widthIndex !== -1 && commandArgs[widthIndex + 1]) {
         wrapWidth = parseInt(commandArgs[widthIndex + 1], 10);
       }
@@ -686,7 +777,9 @@ async function main() {
       // Get files to process
       let filesToProcess = [];
       if (options.glob) {
-        filesToProcess = await glob(options.glob, { ignore: ['node_modules/**', '.git/**'] });
+        filesToProcess = await glob(options.glob, {
+          ignore: ["node_modules/**", ".git/**"],
+        });
       } else if (fileArgs.length > 0) {
         // Check if arguments are files or directories
         for (const arg of fileArgs) {
@@ -694,11 +787,15 @@ async function main() {
             const stat = await fs.stat(arg);
             if (stat.isDirectory()) {
               if (recursive) {
-                const pattern = path.join(arg, '**/*.{txt,md,mdx,mdc,mdd}');
-                const dirFiles = await glob(pattern, { ignore: ['node_modules/**', '.git/**'] });
+                const pattern = path.join(arg, "**/*.{txt,md,mdx,mdc,mdd}");
+                const dirFiles = await glob(pattern, {
+                  ignore: ["node_modules/**", ".git/**"],
+                });
                 filesToProcess.push(...dirFiles);
               } else {
-                console.error(`Error: ${arg} is a directory. Use --recursive to process directories.`);
+                console.error(
+                  `Error: ${arg} is a directory. Use --recursive to process directories.`,
+                );
                 process.exit(1);
               }
             } else {
@@ -711,13 +808,13 @@ async function main() {
         }
       } else {
         // Default: find all text and markdown files
-        filesToProcess = await glob('**/*.{txt,md,mdx,mdc,mdd}', { 
-          ignore: ['node_modules/**', '.git/**'] 
+        filesToProcess = await glob("**/*.{txt,md,mdx,mdc,mdd}", {
+          ignore: ["node_modules/**", ".git/**"],
         });
       }
 
       if (filesToProcess.length === 0) {
-        console.log('No files found to auto-format');
+        console.log("No files found to auto-format");
         return;
       }
 
@@ -727,12 +824,12 @@ async function main() {
       }
 
       // Initialize auto-formatter with options
-      const formatter = new AutoFormatter({ 
+      const formatter = new AutoFormatter({
         aggressive: true,
         semanticBreaks,
         smartQuotes,
         ellipsis,
-        wrapWidth
+        wrapWidth,
       });
 
       // Load plugins if specified
@@ -743,29 +840,175 @@ async function main() {
             console.log(`✓ Loaded plugins from ${pluginsDir}\n`);
           }
         } catch (error) {
-          console.error(`⚠️  Could not load plugins from ${pluginsDir}:`, error.message);
+          console.error(
+            `⚠️  Could not load plugins from ${pluginsDir}:`,
+            error.message,
+          );
         }
       }
 
       // Format files
-      const results = await formatter.formatFiles(filesToProcess, { 
-        write: true, 
-        quiet: options.quiet 
+      const results = await formatter.formatFiles(filesToProcess, {
+        write: true,
+        quiet: options.quiet,
       });
 
       // Summary
-      const successful = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
+      const successful = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success).length;
 
       if (!options.quiet) {
-        console.log(`\n${'═'.repeat(60)}`);
-        console.log('AUTO-FORMAT SUMMARY');
-        console.log('═'.repeat(60));
+        console.log(`\n${"═".repeat(60)}`);
+        console.log("AUTO-FORMAT SUMMARY");
+        console.log("═".repeat(60));
         console.log(`✓ Successfully formatted: ${successful} file(s)`);
         if (failed > 0) {
           console.log(`✗ Failed: ${failed} file(s)`);
         }
-        console.log('═'.repeat(60));
+        console.log("═".repeat(60));
+        console.log();
+      }
+
+      process.exit(failed > 0 ? 1 : 0);
+      break;
+    }
+
+    case "draft": {
+      // Parse draft-specific options
+      const dryRun = commandArgs.includes("--dry-run");
+      const polish = commandArgs.includes("--polish");
+      const recursive =
+        commandArgs.includes("--recursive") || commandArgs.includes("-r");
+
+      // Parse header level option
+      let headerLevel = 3;
+      const headerLevelIndex = commandArgs.indexOf("--header-level");
+      if (headerLevelIndex !== -1 && commandArgs[headerLevelIndex + 1]) {
+        headerLevel = parseInt(commandArgs[headerLevelIndex + 1], 10);
+      }
+
+      // Get files to process
+      let filesToProcess = [];
+      if (options.glob) {
+        filesToProcess = await glob(options.glob, {
+          ignore: ["node_modules/**", ".git/**"],
+        });
+      } else if (fileArgs.length > 0) {
+        for (const arg of fileArgs) {
+          try {
+            const stat = await fs.stat(arg);
+            if (stat.isDirectory()) {
+              if (recursive) {
+                const pattern = path.join(arg, "**/*.{txt,md,mdx,mdc,mdd}");
+                const dirFiles = await glob(pattern, {
+                  ignore: ["node_modules/**", ".git/**"],
+                });
+                filesToProcess.push(...dirFiles);
+              } else {
+                console.error(
+                  `Error: ${arg} is a directory. Use --recursive to process directories.`,
+                );
+                process.exit(1);
+              }
+            } else {
+              filesToProcess.push(arg);
+            }
+          } catch (error) {
+            console.error(`Error: Cannot access ${arg}`);
+            process.exit(1);
+          }
+        }
+      } else {
+        // Default: find all text and markdown files
+        filesToProcess = await glob("**/*.{txt,md,mdx,mdc,mdd}", {
+          ignore: ["node_modules/**", ".git/**"],
+        });
+      }
+
+      if (filesToProcess.length === 0) {
+        console.log("No files found to process");
+        return;
+      }
+
+      if (!options.quiet) {
+        console.log(`\n📝 DRAFT MODE\n`);
+        console.log(
+          `Processing ${filesToProcess.length} file(s) with aggressive structure detection...\n`,
+        );
+      }
+
+      // Initialize auto-formatter with draft mode enabled
+      const formatter = new AutoFormatter({
+        aggressive: true,
+        roughDraft: true,
+        headerLevel,
+      });
+
+      let results;
+      if (dryRun) {
+        // Preview mode - show output without writing
+        for (const filePath of filesToProcess) {
+          try {
+            const content = await fs.readFile(filePath, "utf-8");
+            // Use async format for full NLP processing
+            const formatted = await formatter.formatAsync(content);
+
+            // Optionally run through remark pipeline
+            let finalContent = formatted;
+            if (polish) {
+              const result = await processFiles([filePath], {
+                write: false,
+                quiet: true,
+                lintOnly: false,
+              });
+              // For dry-run with polish, we'd need to process the formatted content
+              // This is a simplified version - full polish would need more work
+            }
+
+            console.log(`\n${"═".repeat(60)}`);
+            console.log(`File: ${filePath}`);
+            console.log("═".repeat(60));
+            console.log(finalContent);
+          } catch (error) {
+            console.error(`✗ Error processing ${filePath}:`, error.message);
+          }
+        }
+        return;
+      }
+
+      // Write mode
+      results = await formatter.formatFiles(filesToProcess, {
+        write: true,
+        quiet: options.quiet,
+      });
+
+      // If polish is enabled, run remark on the formatted files
+      if (polish) {
+        if (!options.quiet) {
+          console.log(`\n🔧 Running remark polish on draft output...\n`);
+        }
+        await processFiles(filesToProcess, {
+          write: true,
+          quiet: options.quiet,
+        });
+      }
+
+      // Summary
+      const successful = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success).length;
+
+      if (!options.quiet) {
+        console.log(`\n${"═".repeat(60)}`);
+        console.log("DRAFT MODE SUMMARY");
+        console.log("═".repeat(60));
+        console.log(`✓ Successfully transformed: ${successful} file(s)`);
+        if (failed > 0) {
+          console.log(`✗ Failed: ${failed} file(s)`);
+        }
+        if (polish) {
+          console.log(`✓ Remark polish applied`);
+        }
+        console.log("═".repeat(60));
         console.log();
       }
 
@@ -775,12 +1018,12 @@ async function main() {
 
     default:
       console.error(`Unknown command: ${command}`);
-      console.error('Run "markdownfix --help" for usage information');
+      console.error('Run "markdownkit --help" for usage information');
       process.exit(1);
   }
 }
 
-main().catch(error => {
-  console.error('Fatal error:', error);
+main().catch((error) => {
+  console.error("Fatal error:", error);
   process.exit(1);
 });

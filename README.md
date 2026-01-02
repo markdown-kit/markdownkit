@@ -1,4 +1,4 @@
-# Markdown Formatter (markdownfix)
+# Markdown Formatter (markdownkit)
 
 **Opinionated markdown formatter and linter for `.md`, `.mdx`, `.mdc`, and `.mdd` files**
 
@@ -21,35 +21,35 @@ Built on the Remark ecosystem with strict, consistent formatting rules for devel
 
 ```bash
 # Install globally
-npm install -g markdownfix
+npm install -g markdownkit
 
 # Or use with npx (no installation)
-npx markdownfix --help
+npx markdownkit --help
 ```
 
 ## Quick Start
 
 ```bash
 # Format all markdown files in current directory
-markdownfix format
+markdownkit format
 
 # Check formatting without writing changes
-markdownfix check
+markdownkit check
 
 # Lint files for issues
-markdownfix lint
+markdownkit lint
 
 # 🚀 Nuclear mode - run ALL linters and fixers
-markdownfix nuclear
+markdownkit nuclear
 
 # Format specific files
-markdownfix format README.md docs/*.md
+markdownkit format README.md docs/*.md
 
 # Use glob patterns
-markdownfix format --glob "src/**/*.md"
+markdownkit format --glob "src/**/*.md"
 
 # Quiet mode (suppress output)
-markdownfix format --quiet
+markdownkit format --quiet
 ```
 
 ### Using as a Package Script
@@ -59,9 +59,9 @@ Add to your `package.json`:
 ```json
 {
   "scripts": {
-    "format:md": "markdownfix format",
-    "lint:md": "markdownfix lint",
-    "fix:md": "markdownfix nuclear"
+    "format:md": "markdownkit format",
+    "lint:md": "markdownkit lint",
+    "fix:md": "markdownkit nuclear"
   }
 }
 ```
@@ -70,10 +70,10 @@ Add to your `package.json`:
 
 ```bash
 # Create .remarkrc.js configuration
-markdownfix init
+markdownkit init
 
 # Create example content structure
-markdownfix setup
+markdownkit setup
 ```
 
 ## What Gets Formatted
@@ -109,9 +109,9 @@ markdownfix setup
 
 | Extension | Support     | Features                                | Use Case                        |
 | --------- | ----------- | --------------------------------------- | ------------------------------- |
-| `.md`     | ✅ Full      | GFM, frontmatter, tables, task lists    | Documentation, READMEs, blogs   |
-| `.mdx`    | ✅ Full      | Above + JSX components, imports/exports | React docs, interactive content |
-| `.mdc`    | ✅ Full      | Markdown Components (Nuxt Content)      | Nuxt Content, Vue documentation |
+| `.md`     | ✅ Full     | GFM, frontmatter, tables, task lists    | Documentation, READMEs, blogs   |
+| `.mdx`    | ✅ Full     | Above + JSX components, imports/exports | React docs, interactive content |
+| `.mdc`    | ✅ Full     | Markdown Components (Nuxt Content)      | Nuxt Content, Vue documentation |
 | `.mdd`    | ⚠️ Optional | Business documents (see below)          | Invoices, proposals, contracts  |
 
 ### MDC Support
@@ -122,17 +122,21 @@ This formatter includes **full support for `.mdc` files** and MDC (Markdown Comp
 
 ```markdown
 <!-- Block components -->
+
 ::card
 This is card content with **formatting**.
 ::
 
 <!-- Inline components -->
+
 This is text with an :icon{name="rocket"} inline component.
 
 <!-- Props and attributes -->
+
 ![Image]{.rounded width="400"}
 
 <!-- Slots and nesting -->
+
 ::alert{type="warning"}
 This is a warning message!
 ::
@@ -152,11 +156,11 @@ This is a warning message!
 
 ### MDD Support
 
-This formatter can **optionally** format `.mdd` files if you install the [MDD package](https://www.npmjs.com/package/@entro314labs/mdd):
+This formatter can **optionally** format `.mdd` files if you install the [MDD package](https://www.npmjs.com/package/@markdownkit/mdd):
 
 ```bash
 # Install MDD support
-pnpm add @entro314labs/mdd
+pnpm add @markdownkit/mdd
 
 # Now .mdd files will be formatted
 pnpm run format
@@ -169,12 +173,14 @@ pnpm run format
 ### Available Commands
 
 ```bash
-markdownfix format [files...]   # Format and fix markdown files
-markdownfix check [files...]    # Check without writing changes
-markdownfix lint [files...]     # Lint for issues only
-markdownfix nuclear [files...]  # 🚀 Run ALL linters and fixers
-markdownfix init               # Create .remarkrc.js config
-markdownfix setup              # Create example content structure
+markdownkit format [files...]     # Format and fix markdown files
+markdownkit check [files...]      # Check without writing changes
+markdownkit lint [files...]       # Lint for issues only
+markdownkit nuclear [files...]    # 🚀 Run ALL linters and fixers
+markdownkit autoformat [files...] # 🤖 Convert plain text to markdown
+markdownkit draft [files...]      # 📝 NLP-enhanced rough text transformer
+markdownkit init                  # Create .remarkrc.js config
+markdownkit setup                 # Create example content structure
 ```
 
 ### 🚀 Nuclear Mode
@@ -196,15 +202,15 @@ The `nuclear` command runs a comprehensive 3-step workflow that applies **all** 
 
 ```bash
 # Run on all markdown files
-markdownfix nuclear
+markdownkit nuclear
 
 # Run on specific directory
-markdownfix nuclear --glob "docs/**/*.{md,mdx}"
+markdownkit nuclear --glob "docs/**/*.{md,mdx}"
 
 # Add to package.json
 {
   "scripts": {
-    "precommit": "markdownfix nuclear"
+    "precommit": "markdownkit nuclear"
   }
 }
 ```
@@ -276,17 +282,56 @@ NUCLEAR MODE SUMMARY
    • Add blank lines between list items
 ````
 
+### 🤖 Autoformat Mode
+
+The `autoformat` command converts plain text with minimal structure into proper markdown:
+
+```bash
+# Convert files to structured markdown
+markdownkit autoformat notes.txt
+
+# Enable smart typography (quotes, dashes, ellipsis)
+markdownkit autoformat --auto document.md
+
+# Load custom formatting plugins
+markdownkit autoformat --plugins ./my-plugins file.txt
+```
+
+**Options:** `--semantic`, `--smart-quotes`, `--ellipsis`, `--width <n>`, `--auto`, `--plugins <dir>`
+
+### 📝 Draft Mode (NLP-Enhanced)
+
+The `draft` command uses **retext NLP** for intelligent text processing of rough notes:
+
+```bash
+# Transform rough text with NLP processing
+markdownkit draft notes.txt
+
+# Preview output without writing
+markdownkit draft --dry-run messy.txt
+
+# Use H2 for folder headers (default: H3)
+markdownkit draft --header-level 2 file.txt
+```
+
+**NLP Transformations:**
+
+- `i think` → `I think` (pronoun fix)
+- `"hello"` → `"hello"` (smart quotes)
+- `...` → `…` (ellipsis)
+- `project-name/` → `### Project Name` (folder headers)
+
 ### Command Aliases
 
 The CLI is available via two commands:
 
-- `markdownfix` (full name)
-- `mdfix` (short alias)
+- `markdownkit` (full name)
+- `mdkit` (short alias)
 
 ```bash
 # These are equivalent
-markdownfix format
-mdfix format
+markdownkit format
+mdkit format
 ```
 
 ### Options
@@ -302,24 +347,24 @@ mdfix format
 
 ```bash
 # Format all markdown in project
-mdfix format
+mdkit format
 
 # Check specific files
-mdfix check README.md CHANGELOG.md
+mdkit check README.md CHANGELOG.md
 
 # Lint with glob pattern
-mdfix lint --glob "docs/**/*.{md,mdx}"
+mdkit lint --glob "docs/**/*.{md,mdx}"
 
 # Quiet formatting
-mdfix format --quiet
+mdkit format --quiet
 
 # Get help
-mdfix --help
+mdkit --help
 ```
 
 ## Development Scripts
 
-If you're working on the markdownfix project itself:
+If you're working on the markdownkit project itself:
 
 ```bash
 # Formatting
@@ -346,7 +391,7 @@ pnpm run clean-cache    # Clear remark cache
 ## Project Structure
 
 ```
-markdownfix/
+markdownkit/
 ├── content/            # Example content
 │   ├── docs/
 │   ├── blog/
@@ -392,18 +437,18 @@ ESLint is **built-in** with opinionated defaults. Customize by creating `eslint.
 Create `eslint.config.js` in your project to override defaults:
 
 ```javascript
-import * as mdxPlugin from 'eslint-plugin-mdx';
+import * as mdxPlugin from "eslint-plugin-mdx";
 
 export default [
   {
-    files: ['**/*.{md,mdx,mdc,mdd}'],
+    files: ["**/*.{md,mdx,mdc,mdd}"],
     ...mdxPlugin.flat,
     // Your custom rules here
-  }
+  },
 ];
 ```
 
-See [ESLINT\_INTEGRATION.md](ESLINT_INTEGRATION.md) for full details.
+See [ESLINT_INTEGRATION.md](ESLINT_INTEGRATION.md) for full details.
 
 ### `.remarkignore`
 
@@ -476,7 +521,7 @@ pnpm run process:safe
 
 ## Entro314 Labs Markdown Ecosystem
 
-markdownfix is part of a comprehensive markdown ecosystem. For complete documentation, see [PROJECT\_ECOSYSTEM.md](../PROJECT_ECOSYSTEM.md).
+markdownkit is part of a comprehensive markdown ecosystem. For complete documentation, see [PROJECT_ECOSYSTEM.md](../PROJECT_ECOSYSTEM.md).
 
 ### Companion Projects
 
@@ -493,7 +538,7 @@ Semantic document format for professional business documents:
 - **200+ document types**: Comprehensive business document catalog
 - **Version control friendly**: Plain text `.mdd` files
 
-**Installation**: `npm install -g @entro314labs/mdd`
+**Installation**: `npm install -g @markdownkit/mdd`
 
 **Quick start**:
 
@@ -505,7 +550,7 @@ mdd-preview document.mdd
 npx mdd-preview examples/invoice.mdd
 ```
 
-markdownfix can **optionally format `.mdd` files** by installing MDD as a dependency.
+markdownkit can **optionally format `.mdd` files** by installing MDD as a dependency.
 
 #### 🖥️ [Anasa](https://github.com/entro314-labs/anasa)
 
@@ -521,27 +566,28 @@ Desktop knowledge management application with MDD integration:
 
 ### When to Use Which
 
-| Document Type                  | Use         | File Extension | Package                     |
-| ------------------------------ | ----------- | -------------- | --------------------------- |
-| README files                   | markdownfix | `.md`          | `@entro314labs/markdownfix` |
-| Technical documentation        | markdownfix | `.md`          | `@entro314labs/markdownfix` |
-| Blog posts                     | markdownfix | `.md` / `.mdx` | `@entro314labs/markdownfix` |
-| React component docs           | markdownfix | `.mdx`         | `@entro314labs/markdownfix` |
-| **Business letters**           | **MDD**     | **`.mdd`**     | **`@entro314labs/mdd`**     |
-| **Invoices**                   | **MDD**     | **`.mdd`**     | **`@entro314labs/mdd`**     |
-| **Proposals**                  | **MDD**     | **`.mdd`**     | **`@entro314labs/mdd`**     |
-| **Contracts**                  | **MDD**     | **`.mdd`**     | **`@entro314labs/mdd`**     |
-| Knowledge base + business docs | Anasa + MDD | `.md` + `.mdd` | Desktop app                 |
+| Document Type                  | Use         | File Extension | Package                    |
+| ------------------------------ | ----------- | -------------- | -------------------------- |
+| README files                   | markdownkit | `.md`          | `@markdownkit/markdownkit` |
+| Technical documentation        | markdownkit | `.md`          | `@markdownkit/markdownkit` |
+| Blog posts                     | markdownkit | `.md` / `.mdx` | `@markdownkit/markdownkit` |
+| React component docs           | markdownkit | `.mdx`         | `@markdownkit/markdownkit` |
+| **Business letters**           | **MDD**     | **`.mdd`**     | **`@markdownkit/mdd`**     |
+| **Invoices**                   | **MDD**     | **`.mdd`**     | **`@markdownkit/mdd`**     |
+| **Proposals**                  | **MDD**     | **`.mdd`**     | **`@markdownkit/mdd`**     |
+| **Contracts**                  | **MDD**     | **`.mdd`**     | **`@markdownkit/mdd`**     |
+| Knowledge base + business docs | Anasa + MDD | `.md` + `.mdd` | Desktop app                |
 
 ## Documentation
 
 - **[content/guides/style-guide.md](content/guides/style-guide.md)** - Style specifications
-- **[ESLINT\_INTEGRATION.md](ESLINT_INTEGRATION.md)** - ESLint + MDX integration guide
+- **[ESLINT_INTEGRATION.md](ESLINT_INTEGRATION.md)** - ESLint + MDX integration guide
 
 ## Tech Stack
 
 - **Remark** - Markdown processor
 - **Unified** - AST transformation
+- **Retext** - Natural language processing (NLP)
 - **GFM** - GitHub Flavored Markdown
 - **MDX** - JSX in markdown
 - **MDC** - Markdown Components (Nuxt Content)

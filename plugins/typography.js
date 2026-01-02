@@ -1,5 +1,5 @@
 /**
- * Smart Typography Plugin for mdfix autoformat
+ * Smart Typography Plugin for mdkit autoformat
  */
 
 export default {

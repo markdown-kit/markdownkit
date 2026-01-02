@@ -1,12 +1,12 @@
 /**
- * Smart Typography Plugin for mdfix autoformat
+ * Smart Typography Plugin for mdkit autoformat
  * 
  * Provides advanced typography rules for professional-looking markdown output.
  * Inspired by flowmark's typography features.
  * 
  * To use this plugin:
  * 1. Save this file to a plugins directory (e.g., ./plugins/)
- * 2. Run: mdfix autoformat --plugins ./plugins file.md
+ * 2. Run: mdkit autoformat --plugins ./plugins file.md
  */
 
 export default {
@@ -104,10 +104,10 @@ export default {
  * USAGE EXAMPLES:
  * 
  * Basic usage:
- *   mdfix autoformat --plugins ./plugins document.md
+ *   mdkit autoformat --plugins ./plugins document.md
  * 
  * Combined with other features:
- *   mdfix autoformat --auto --plugins ./plugins document.md
+ *   mdkit autoformat --auto --plugins ./plugins document.md
  * 
  * TRANSFORMATIONS:
  * 
