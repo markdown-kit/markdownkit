@@ -56,8 +56,8 @@ temp/
 coverage/
 .nyc_output/
 
-# ESLint cache
-.eslintcache
+# OXC cache
+.oxlintcache
 
 # Remark cache (if any)
 .remark-cache/
@@ -80,7 +80,7 @@ content/docs/api-reference.md
 content/docs/getting-started.md
 content/guides/style-guide.md
 PUBLISHING.md
-ESLINT_INTEGRATION.md
+OXLINT_MDX_INTEGRATION.md
 enhancement.md
 unformatted-text.md
 formatted-text.md

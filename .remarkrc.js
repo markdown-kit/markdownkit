@@ -5,22 +5,18 @@
  */
 
 // Try to load MDD plugins if available
-let mddPlugins = [];
+let mddPlugins = []
 try {
-  const mddDocStructure = await import('@markdownkit/mdd/plugins/remark-mdd-document-structure.js');
-  const mddTextFormatting = await import('@markdownkit/mdd/plugins/remark-mdd-text-formatting.js');
-  const mddMdxConditional = await import('@markdownkit/mdd/plugins/remark-mdx-conditional.js');
+  const mddDocStructure = await import('@markdownkit/mdd/plugins/remark-mdd-document-structure.js')
+  const mddTextFormatting = await import('@markdownkit/mdd/plugins/remark-mdd-text-formatting.js')
+  const mddMdxConditional = await import('@markdownkit/mdd/plugins/remark-mdx-conditional.js')
 
-  mddPlugins = [
-    mddMdxConditional.default,
-    mddDocStructure.default,
-    mddTextFormatting.default
-  ];
-  console.log('✓ MDD support enabled');
-} catch (e) {
+  mddPlugins = [mddMdxConditional.default, mddDocStructure.default, mddTextFormatting.default]
+  console.log('✓ MDD support enabled')
+} catch {
   // MDD package not installed - only support .md, .mdx, and .mdc
-  mddPlugins = ['remark-mdx'];
-  console.log('ℹ MDD support not available (install mdd package for .mdd file support)');
+  mddPlugins = ['remark-mdx']
+  console.log('ℹ MDD support not available (install mdd package for .mdd file support)')
 }
 
 export default {
@@ -83,6 +79,6 @@ export default {
     ['remark-lint-no-empty-sections', true],
 
     // Must be last - handles the output formatting
-    'remark-stringify'
-  ]
+    'remark-stringify',
+  ],
 }

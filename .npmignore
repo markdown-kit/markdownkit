@@ -56,8 +56,8 @@ temp/
 coverage/
 .nyc_output/
 
-# ESLint cache
-.eslintcache
+# OXC cache
+.oxlintcache
 
 # Remark cache (if any)
 .remark-cache/

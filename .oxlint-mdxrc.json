@@ -1,0 +1,20 @@
+{
+  "include": ["**/*.{md,mdx,mdc,mdd}"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.next/**",
+    "**/.cache/**",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "PUBLISHING.md",
+    "OXLINT_MDX_INTEGRATION.md"
+  ],
+  "remark": {
+    "enabled": true,
+    "applyDefaultLintRules": true,
+    "applyDefaultLinkValidation": true
+  }
+}

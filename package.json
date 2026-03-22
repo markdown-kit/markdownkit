@@ -1,87 +1,92 @@
 {
   "name": "@markdownkit/markdownkit",
-  "version": "1.0.0",
+  "version": "2.1.1",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
-  "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/markdown-kit/markdownkit.git"
-  },
+  "keywords": [
+    "formatter",
+    "gfm",
+    "linter",
+    "markdown",
+    "markdown-components",
+    "markdown-linter",
+    "markdownkit",
+    "mdc",
+    "mdd",
+    "mdx",
+    "nuxt-content",
+    "opinionated",
+    "remark",
+    "unified"
+  ],
   "homepage": "https://github.com/markdown-kit/markdownkit#readme",
   "bugs": {
     "url": "https://github.com/markdown-kit/markdownkit/issues"
   },
+  "license": "MIT",
+  "author": "Dominikos Pritis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markdown-kit/markdownkit.git"
+  },
+  "bin": {
+    "markdownkit": "./cli.js",
+    "markdownkit-setup": "./setup.js",
+    "mdkit": "./cli.js"
+  },
   "files": [
     ".remarkrc.js",
     ".remarkignore",
-    "eslint.config.js",
+    ".oxlint-mdxrc.json",
     "setup.js",
     "cli.js",
     "text-processor.js",
-    "autoformat.js",
     "README.md",
-    "ESLINT_INTEGRATION.md",
+    "OXLINT_MDX_INTEGRATION.md",
     "LICENSE"
   ],
-  "bin": {
-    "markdownkit": "./cli.js",
-    "mdkit": "./cli.js",
-    "markdownkit-setup": "./setup.js"
+  "type": "module",
+  "exports": {
+    ".": "./text-processor.js",
+    "./text-processor": "./text-processor.js",
+    "./setup": "./setup.js",
+    "./cli": "./cli.js"
   },
   "scripts": {
-    "lint": "remark . --quiet --frail",
-    "lint:eslint": "eslint --config eslint.config.js .",
-    "lint:eslint:fix": "eslint --config eslint.config.js --fix .",
-    "lint:all": "pnpm run lint && pnpm run lint:eslint",
-    "format": "remark . --output --quiet",
-    "format:check": "remark . --quiet",
+    "lint:remark": "remark . --quiet --frail",
+    "lint:oxlint-mdx": "oxlint-mdx \"**/*.{md,mdx,mdc,mdd}\"",
+    "lint:oxlint-mdx:fix": "oxlint-mdx --fix \"**/*.{md,mdx,mdc,mdd}\"",
+    "lint:all": "pnpm run lint:remark && pnpm run lint:oxlint-mdx",
+    "format:remark": "remark . --output --quiet",
+    "format:check-remark": "remark . --quiet",
     "check-links": "markdown-link-check **/*.{md,mdx,mdc,mdd}",
-    "process": "pnpm run format && pnpm run lint:all",
-    "process:safe": "pnpm run format:check && pnpm run lint:all",
+    "process": "pnpm run format:remark && pnpm run lint:all",
+    "process:safe": "pnpm run format:check-remark && pnpm run lint:all",
     "nuclear": "node cli.js nuclear",
     "clean-cache": "rm -rf .remark-cache",
-    "test": "pnpm run process:safe"
-  },
-  "keywords": [
-    "markdown",
-    "mdx",
-    "mdc",
-    "mdd",
-    "linter",
-    "formatter",
-    "remark",
-    "gfm",
-    "unified",
-    "markdownkit",
-    "markdown-linter",
-    "markdown-components",
-    "nuxt-content",
-    "opinionated"
-  ],
-  "author": "Dominikos Pritis",
-  "license": "MIT",
-  "devDependencies": {
-    "markdown-link-check": "^3.14.2",
-    "remark-cli": "^12.0.1"
-  },
-  "engines": {
-    "node": ">=22.x"
+    "test": "pnpm run process:safe",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "lint:ci": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix .",
+    "lint:fix-unsafe": "oxlint --import-plugin node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions --fix-dangerously .",
+    "check:fix-suggestions": "oxlint --import-plugin node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions . && oxfmt --write .",
+    "check": "pnpm run format:check && pnpm run lint:ci",
+    "check:full": "pnpm run check && pnpm run test"
   },
   "dependencies": {
-    "@adobe/remark-gridtables": "^3.0.16",
+    "@adobe/remark-gridtables": "^3.0.18",
     "@code-dot-org/remark-plugins": "^2.0.1",
-    "@markdownkit/remark-mdd": "^1.0.0",
+    "@markdownkit/oxlint-mdx": "^2.1.1",
+    "@markdownkit/remark-mdd": "^2.1.0",
     "@theguild/remark-mermaid": "^0.3.0",
-    "eslint": "^9.39.2",
-    "eslint-plugin-mdx": "^3.6.2",
-    "eslint-plugin-react": "^7.37.5",
-    "fumadocs-docgen": "^3.0.5",
-    "glob": "^13.0.0",
+    "fumadocs-docgen": "^3.0.8",
+    "glob": "^13.0.6",
     "js-yaml": "^4.1.1",
     "rehype-remark": "^10.0.1",
     "remark": "latest",
     "remark-directive": "^4.0.0",
-    "remark-docx": "^0.3.22",
+    "remark-docx": "^0.3.26",
     "remark-emoji": "^5.0.2",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
@@ -133,7 +138,7 @@
     "remark-rehype": "^11.1.2",
     "remark-stringify": "^11.0.0",
     "remark-toc": "^9.0.0",
-    "remark-typography": "^0.7.0",
+    "remark-typography": "^0.7.3",
     "remark-validate-links": "^13.1.0",
     "retext": "^9.0.0",
     "retext-english": "^5.0.0",
@@ -142,7 +147,18 @@
     "retext-stringify": "^4.0.0",
     "to-vfile": "^8.0.0",
     "unified-lint-rule": "^3.0.1",
-    "unist-util-visit": "^5.0.0",
+    "unist-util-visit": "^5.1.0",
+    "vfile": "^6.0.3",
     "vfile-reporter": "^8.1.1"
+  },
+  "devDependencies": {
+    "markdown-link-check": "^3.14.2",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
+    "oxlint-tsgolint": "^0.17.1",
+    "remark-cli": "^12.0.1"
+  },
+  "engines": {
+    "node": ">=22.x"
   }
 }

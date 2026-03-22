@@ -5,8 +5,8 @@
  * Creates necessary directories and example files
  */
 
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 const EXAMPLE_FILES = {
   'content/docs/getting-started.md': `---
@@ -190,15 +190,15 @@ Always include descriptive alt text:
 \`\`\`markdown
 ![Screenshot of the main dashboard](./images/dashboard.png)
 \`\`\`
-`
+`,
 }
 
 async function createDirectory(dirPath) {
   try {
     await fs.mkdir(dirPath, { recursive: true })
     console.log(`✓ Created directory: ${dirPath}`)
-  } catch (error) {
-    console.error(`✗ Failed to create directory ${dirPath}:`, error.message)
+  } catch (err) {
+    console.error(`✗ Failed to create directory ${dirPath}:`, err.message)
   }
 }
 
@@ -207,40 +207,35 @@ async function createFile(filePath, content) {
     // Ensure the directory exists
     const dir = path.dirname(filePath)
     await createDirectory(dir)
-    
+
     // Write the file
     await fs.writeFile(filePath, content, 'utf8')
     console.log(`✓ Created file: ${filePath}`)
-  } catch (error) {
-    console.error(`✗ Failed to create file ${filePath}:`, error.message)
+  } catch (err) {
+    console.error(`✗ Failed to create file ${filePath}:`, err.message)
   }
 }
 
 async function setup() {
   console.log('🚀 Setting up markdown processor project...\n')
-  
+
   // Create directories
-  const directories = [
-    'content',
-    'content/docs', 
-    'content/blog',
-    'content/guides'
-  ]
-  
+  const directories = ['content', 'content/docs', 'content/blog', 'content/guides']
+
   console.log('📁 Creating directories...')
   for (const dir of directories) {
     await createDirectory(dir)
   }
-  
+
   console.log('\n📝 Creating example files...')
   for (const [filePath, content] of Object.entries(EXAMPLE_FILES)) {
     await createFile(filePath, content)
   }
-  
+
   console.log('\n✅ Setup complete!')
   console.log('\nNext steps:')
   console.log('1. Run `npm install` to install dependencies')
-  console.log('2. Run `npm run process` to format the example files')  
+  console.log('2. Run `npm run process` to format the example files')
   console.log('3. Check the `content/` directory for formatted examples')
   console.log('4. Add your own markdown files to the `content/` directory')
   console.log('\nAvailable commands:')

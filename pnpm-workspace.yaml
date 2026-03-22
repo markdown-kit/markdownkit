@@ -1,5 +1,5 @@
 packages:
-  - "vscode-extension"
+  - 'vscode-extension'
 
 onlyBuiltDependencies:
   - core-js

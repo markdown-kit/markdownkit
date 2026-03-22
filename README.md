@@ -8,14 +8,14 @@ Built on the Remark ecosystem with strict, consistent formatting rules for devel
 
 - ✅ **Opinionated formatting** - Consistent style across all markdown files
 - ✅ **GitHub Flavored Markdown** - Tables, task lists, strikethrough, autolinks
-- ✅ **MDX support** - JSX components in markdown with ESLint integration
+- ✅ **MDX support** - JSX components in markdown with oxlint-mdx integration
 - ✅ **MDC syntax support** - Markdown Components for Nuxt Content
 - ✅ **Comprehensive linting** - 40+ remark-lint rules for quality and consistency
-- ✅ **Code block linting** - ESLint integration built-in for JavaScript/JSX in code blocks
+- ✅ **Code block linting** - oxlint-mdx integration built-in for JavaScript/JSX in code blocks
 - ✅ **Link validation** - Check for broken links
 - ✅ **Auto-fixing** - Automatically fix formatting issues
 - ✅ **Zero config** - Works out of the box, customize if needed
-- ✅ **IDE integration** - Works with VS Code ESLint extension
+- ✅ **IDE integration** - Diagnostics map back to original markdown/MDX source locations
 
 ## Installation
 
@@ -185,11 +185,12 @@ markdownkit setup                 # Create example content structure
 
 ### 🚀 Nuclear Mode
 
-The `nuclear` command runs a comprehensive 3-step workflow that applies **all** available linters and fixers:
+The `nuclear` command runs a comprehensive 4-step workflow that applies **all** available linters and fixers:
 
-1. **Remark Formatting** - Auto-fix markdown syntax
-2. **ESLint Auto-fix** - Fix JavaScript/JSX in code blocks
-3. **Final Validation** - Report any remaining issues
+1. **Autoformat Polish** - Safe text normalization and typography cleanup
+2. **Remark Formatting** - Auto-fix markdown syntax
+3. **oxlint-mdx Auto-fix** - Fix code blocks and MDX expressions
+4. **Final Validation** - Report any remaining issues
 
 **Perfect for:**
 
@@ -222,20 +223,24 @@ markdownkit nuclear --glob "docs/**/*.{md,mdx}"
 
 Processing 15 file(s) with comprehensive workflow...
 
-Step 1/3: Running remark formatting...
+Step 1/4: Running autoformat polish...
+  ✓ Polished 15 file(s)
+
+Step 2/4: Running remark formatting...
   ✓ Formatted 15 file(s)
 
-Step 2/3: Running ESLint auto-fix on code blocks...
-  ✓ ESLint auto-fix completed
+Step 3/4: Running oxlint-mdx auto-fix...
+  ✓ oxlint-mdx auto-fix completed
 
-Step 3/3: Running final validation...
+Step 4/4: Running final validation...
   ✓ All validation checks passed
 
 ════════════════════════════════════════════════════════════
 NUCLEAR MODE SUMMARY
 ════════════════════════════════════════════════════════════
+✓ Autoformat Polish    PASS             Polished 15 files
 ✓ Remark Format        PASS             Formatted 15/15 files
-✓ ESLint Fix           PASS             Fixed code blocks
+✓ oxlint-mdx Fix       PASS             Fixed markdown/MDX code issues
 ✓ Validation           PASS             All checks passed
 ════════════════════════════════════════════════════════════
 🎉 All checks passed! Your markdown is pristine.
@@ -248,14 +253,17 @@ NUCLEAR MODE SUMMARY
 
 Processing 8 file(s) with comprehensive workflow...
 
-Step 1/3: Running remark formatting...
+Step 1/4: Running autoformat polish...
+  ✓ Polished 8 file(s)
+
+Step 2/4: Running remark formatting...
   ✓ Formatted 8 file(s)
   ℹ️  Some issues require manual fixes
 
-Step 2/3: Running ESLint auto-fix on code blocks...
-  ⚠️  ESLint found issues that need manual fixes
+Step 3/4: Running oxlint-mdx auto-fix...
+  ⚠️  oxlint-mdx found issues that need manual fixes
 
-Step 3/3: Running final validation...
+Step 4/4: Running final validation...
   ⚠️  Validation found remaining issues
 
 ════════════════════════════════════════════════════════════
@@ -268,8 +276,9 @@ file.md
 ════════════════════════════════════════════════════════════
 NUCLEAR MODE SUMMARY
 ════════════════════════════════════════════════════════════
+✓ Autoformat Polish    PASS             Polished 8 files
 ✓ Remark Format        PASS             Formatted 8/8 files
-⚠️ ESLint Fix           NEEDS ATTENTION  Some issues remain
+⚠️ oxlint-mdx Fix       NEEDS ATTENTION  Some issues remain
 ⚠️ Validation           NEEDS ATTENTION  Issues found
 ════════════════════════════════════════════════════════════
 
@@ -373,9 +382,9 @@ pnpm run format:check   # Preview changes
 
 # Linting
 pnpm run lint           # Remark-lint only
-pnpm run lint:eslint    # ESLint + MDX only
-pnpm run lint:eslint:fix # ESLint auto-fix
-pnpm run lint:all       # Both remark and ESLint
+pnpm run lint:oxlint-mdx     # oxlint-mdx only
+pnpm run lint:oxlint-mdx:fix # oxlint-mdx auto-fix
+pnpm run lint:all            # Both remark and oxlint-mdx
 
 # Combined
 pnpm run process        # Format then lint all
@@ -421,34 +430,24 @@ Central configuration defining:
 4. Lint presets + rules
 5. `remark-stringify` - Must be last
 
-### `eslint.config.js` (Optional)
+### `.oxlint-mdxrc.json` (Optional)
 
-ESLint is **built-in** with opinionated defaults. Customize by creating `eslint.config.js` in your project:
+`@markdownkit/oxlint-mdx` is built-in with opinionated defaults. Customize by creating `.oxlint-mdxrc.json` in your project.
 
-**Default Behavior:**
+Example:
 
-- ✅ ESLint and eslint-plugin-mdx are included in the package
-- ✅ Automatically uses bundled config if no local config found
-- ✅ Lints JavaScript/JSX in code blocks
-- ✅ Works out of the box globally or locally
-
-**Custom Configuration:**
-
-Create `eslint.config.js` in your project to override defaults:
-
-```javascript
-import * as mdxPlugin from "eslint-plugin-mdx";
-
-export default [
-  {
-    files: ["**/*.{md,mdx,mdc,mdd}"],
-    ...mdxPlugin.flat,
-    // Your custom rules here
-  },
-];
+```json
+{
+  "include": ["**/*.{md,mdx,mdc,mdd}"],
+  "remark": {
+    "enabled": true,
+    "applyDefaultLintRules": true,
+    "applyDefaultLinkValidation": true
+  }
+}
 ```
 
-See [ESLINT_INTEGRATION.md](ESLINT_INTEGRATION.md) for full details.
+See [OXLINT_MDX_INTEGRATION.md](OXLINT_MDX_INTEGRATION.md) for full details.
 
 ### `.remarkignore`
 
@@ -581,7 +580,7 @@ Desktop knowledge management application with MDD integration:
 ## Documentation
 
 - **[content/guides/style-guide.md](content/guides/style-guide.md)** - Style specifications
-- **[ESLINT_INTEGRATION.md](ESLINT_INTEGRATION.md)** - ESLint + MDX integration guide
+- **[OXLINT_MDX_INTEGRATION.md](OXLINT_MDX_INTEGRATION.md)** - oxlint-mdx integration guide
 
 ## Tech Stack
 
@@ -591,7 +590,7 @@ Desktop knowledge management application with MDD integration:
 - **GFM** - GitHub Flavored Markdown
 - **MDX** - JSX in markdown
 - **MDC** - Markdown Components (Nuxt Content)
-- **ESLint** - JavaScript/JSX linting in code blocks
+- **@markdownkit/oxlint-mdx** - Markdown/MDX and code block linting with remapped diagnostics
 
 ## Contributing
 
