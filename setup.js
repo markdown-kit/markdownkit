@@ -37,7 +37,7 @@ Before you begin, make sure you have:
 The formatter supports various commands:
 
 - \`npm run lint\` - Check for issues
-- \`npm run format\` - Fix formatting  
+- \`npm run format:remark\` - Fix markdown formatting
 - \`npm run process\` - Complete processing
 
 **Note**: Always backup your files before processing.
@@ -48,7 +48,7 @@ For more details, see the [API Reference](./api-reference.md).
 `,
 
   'content/docs/api-reference.md': `---
-title: API Reference  
+title: API Reference
 date: 2024-01-20
 ---
 
@@ -72,12 +72,12 @@ Checks all markdown files for style violations.
 npm run lint
 \`\`\`
 
-### npm run format  
+### npm run format:remark
 
 Automatically fixes formatting issues.
 
 \`\`\`bash
-npm run format
+npm run format:remark
 \`\`\`
 
 ## Custom Rules
@@ -107,7 +107,7 @@ Browse all posts by date or category.
 title: Markdown Style Guide
 ---
 
-# Markdown Style Guide  
+# Markdown Style Guide
 
 This document defines the formatting standards enforced by this project.
 
@@ -122,12 +122,12 @@ This document defines the formatting standards enforced by this project.
 \`\`\`markdown
 # Main Heading
 
-## Section Heading  
+## Section Heading
 
 ### Subsection Heading
 \`\`\`
 
-### Bad Example  
+### Bad Example
 
 \`\`\`markdown
 #Main Heading
@@ -198,7 +198,7 @@ async function createDirectory(dirPath) {
     await fs.mkdir(dirPath, { recursive: true })
     console.log(`✓ Created directory: ${dirPath}`)
   } catch (err) {
-    console.error(`✗ Failed to create directory ${dirPath}:`, err.message)
+    throw new Error(`Failed to create directory ${dirPath}: ${err.message}`)
   }
 }
 
@@ -212,7 +212,7 @@ async function createFile(filePath, content) {
     await fs.writeFile(filePath, content, 'utf8')
     console.log(`✓ Created file: ${filePath}`)
   } catch (err) {
-    console.error(`✗ Failed to create file ${filePath}:`, err.message)
+    throw new Error(`Failed to create file ${filePath}: ${err.message}`)
   }
 }
 
@@ -240,14 +240,17 @@ async function setup() {
   console.log('4. Add your own markdown files to the `content/` directory')
   console.log('\nAvailable commands:')
   console.log('- `npm run lint` - Check for formatting issues')
-  console.log('- `npm run format` - Fix formatting issues')
+  console.log('- `npm run format:remark` - Fix markdown formatting issues')
   console.log('- `npm run process` - Format and lint files')
   console.log('- `npm run check-links` - Check for broken links')
 }
 
 // Run setup if this script is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  setup().catch(console.error)
+  setup().catch((err) => {
+    console.error(`✗ Setup failed: ${err.message}`)
+    process.exit(1)
+  })
 }
 
 export { setup }

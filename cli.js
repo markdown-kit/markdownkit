@@ -8,6 +8,7 @@
 import { execSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { glob } from 'glob'
 import { remark } from 'remark'
@@ -17,12 +18,233 @@ import remarkPresetLintConsistent from 'remark-preset-lint-consistent'
 import remarkPresetLintMarkdownStyleGuide from 'remark-preset-lint-markdown-style-guide'
 import remarkPresetLintRecommended from 'remark-preset-lint-recommended'
 import remarkStringify from 'remark-stringify'
+import remarkTypography from 'remark-typography'
 import { read } from 'to-vfile'
 import { reporter } from 'vfile-reporter'
 
 import { TextProcessor } from './text-processor.js'
 
 const MARKDOWN_EXTENSIONS = ['md', 'mdx', 'mdc', 'mdd']
+const TEXT_EXTENSIONS_PATTERN = '**/*.{txt,md,mdx,mdc,mdd}'
+const VALUE_OPTIONS = new Set(['--glob', '--width', '--header-level', '--plugins'])
+const DEFAULT_CONCURRENCY = 4
+
+let remarkConfigLoaded = false
+
+/**
+ * Run async work items with a fixed concurrency limit.
+ */
+async function mapWithConcurrency(items, concurrency, worker) {
+  if (items.length === 0) {
+    return []
+  }
+
+  const normalizedConcurrency = Math.max(1, Math.min(concurrency, items.length))
+  const results = Array.from({ length: items.length })
+  let cursor = 0
+
+  async function runWorker() {
+    while (true) {
+      const currentIndex = cursor
+      cursor += 1
+      if (currentIndex >= items.length) {
+        return
+      }
+      results[currentIndex] = await worker(items[currentIndex], currentIndex)
+    }
+  }
+
+  await Promise.all(Array.from({ length: normalizedConcurrency }, runWorker))
+  return results
+}
+
+/**
+ * Parse command arguments into flags, option values, and positional arguments.
+ */
+function parseCommandArgs(commandArgs) {
+  const flags = new Set()
+  const values = new Map()
+  const positional = []
+
+  for (let i = 0; i < commandArgs.length; i++) {
+    const arg = commandArgs[i]
+
+    if (VALUE_OPTIONS.has(arg)) {
+      const value = commandArgs[i + 1]
+      if (!value || value.startsWith('-')) {
+        throw new Error(`Missing value for option: ${arg}`)
+      }
+      values.set(arg, value)
+      i += 1
+      continue
+    }
+
+    if (arg.startsWith('--')) {
+      flags.add(arg)
+      continue
+    }
+
+    if (arg.startsWith('-') && arg.length > 1) {
+      for (const shortFlag of arg.slice(1)) {
+        flags.add(`-${shortFlag}`)
+      }
+      continue
+    }
+
+    positional.push(arg)
+  }
+
+  return { flags, values, positional }
+}
+
+/**
+ * Lazily load project-level .remarkrc.js if present.
+ */
+async function ensureRemarkConfigLoaded(options = {}) {
+  const { quiet = false } = options
+
+  if (remarkConfigLoaded) {
+    return
+  }
+
+  const originalLog = console.log
+  const originalInfo = console.info
+  console.log = () => {}
+  console.info = () => {}
+
+  try {
+    await import(path.join(process.cwd(), '.remarkrc.js'))
+  } catch {
+    if (!quiet) {
+      console.log = originalLog
+      console.info = originalInfo
+      console.warn('⚠️  No .remarkrc.js found in current directory, using default config')
+      console.log = () => {}
+      console.info = () => {}
+    }
+  } finally {
+    console.log = originalLog
+    console.info = originalInfo
+    remarkConfigLoaded = true
+  }
+}
+
+/**
+ * Resolve file targets for text-transforming commands (autoformat, draft).
+ */
+async function resolveTextInputFiles(fileArgs, options = {}) {
+  const { globPattern = null, recursive = false } = options
+
+  if (globPattern) {
+    return glob(globPattern, { ignore: ['node_modules/**', '.git/**'] })
+  }
+
+  if (fileArgs.length === 0) {
+    return glob(TEXT_EXTENSIONS_PATTERN, {
+      ignore: ['node_modules/**', '.git/**'],
+    })
+  }
+
+  const filesToProcess = []
+
+  for (const inputPath of fileArgs) {
+    let stat
+    try {
+      stat = await fs.stat(inputPath)
+    } catch {
+      throw new Error(`Cannot access ${inputPath}`)
+    }
+
+    if (stat.isDirectory()) {
+      if (!recursive) {
+        throw new Error(`${inputPath} is a directory. Use --recursive to process directories.`)
+      }
+
+      const pattern = path.join(inputPath, TEXT_EXTENSIONS_PATTERN)
+      const dirFiles = await glob(pattern, {
+        ignore: ['node_modules/**', '.git/**'],
+      })
+      filesToProcess.push(...dirFiles)
+    } else {
+      filesToProcess.push(inputPath)
+    }
+  }
+
+  return filesToProcess
+}
+
+/**
+ * Load autoformat plugin rules from a plugin file or directory.
+ */
+async function loadAutoformatPlugins(pluginsPath, options = {}) {
+  const { quiet = false } = options
+
+  if (!pluginsPath) {
+    return []
+  }
+
+  const resolvedPath = path.resolve(pluginsPath)
+
+  let stat
+  try {
+    stat = await fs.stat(resolvedPath)
+  } catch {
+    throw new Error(`Cannot access plugins path: ${pluginsPath}`)
+  }
+
+  let pluginFiles = []
+  if (stat.isDirectory()) {
+    const entries = await fs.readdir(resolvedPath, { withFileTypes: true })
+    pluginFiles = entries
+      .filter((entry) => entry.isFile() && /\.(mjs|cjs|js)$/i.test(entry.name))
+      .map((entry) => path.join(resolvedPath, entry.name))
+      .sort()
+  } else if (stat.isFile()) {
+    pluginFiles = [resolvedPath]
+  } else {
+    throw new Error(`Unsupported plugins path: ${pluginsPath}`)
+  }
+
+  if (pluginFiles.length === 0) {
+    throw new Error(`No plugin files found in: ${pluginsPath}`)
+  }
+
+  const rules = []
+
+  for (const pluginFile of pluginFiles) {
+    let module
+    try {
+      module = await import(pathToFileURL(pluginFile).href)
+    } catch (err) {
+      throw new Error(`Failed to load plugin file ${pluginFile}: ${err.message}`)
+    }
+
+    const plugin = module.default ?? module
+    if (!plugin || !Array.isArray(plugin.rules)) {
+      throw new Error(`Invalid plugin shape in ${pluginFile}: expected { rules: [] }`)
+    }
+
+    for (const rule of plugin.rules) {
+      if (!rule || typeof rule.transform !== 'function') {
+        throw new Error(`Invalid rule in ${pluginFile}: every rule must include a transform()`)
+      }
+
+      if (!rule.isMultiLine && !(rule.pattern instanceof RegExp)) {
+        throw new Error(
+          `Invalid rule in ${pluginFile}: non-multiLine rules must include a RegExp pattern`,
+        )
+      }
+
+      rules.push(rule)
+    }
+
+    if (!quiet) {
+      console.log(`✓ Loaded plugin: ${path.basename(pluginFile)}`)
+    }
+  }
+
+  return rules
+}
 
 /**
  * Format multiple files using a TextProcessor instance
@@ -32,47 +254,35 @@ const MARKDOWN_EXTENSIONS = ['md', 'mdx', 'mdc', 'mdd']
  * @returns {Promise<Array<{file: string, success: boolean, error?: string}>>}
  */
 async function formatFiles(processor, files, options = {}) {
-  const results = []
-  for (const file of files) {
+  const { write = false, quiet = false, concurrency = DEFAULT_CONCURRENCY } = options
+
+  const results = await mapWithConcurrency(files, concurrency, async (file) => {
     try {
       const content = await fs.readFile(file, 'utf-8')
       const formatted = await processor.process(content)
-      if (options.write) {
+      if (write) {
         await fs.writeFile(file, formatted, 'utf-8')
-        if (!options.quiet) {
-          console.log(`✓ Formatted: ${file}`)
-        }
       }
-      results.push({ file, success: true })
+      return { file, success: true }
     } catch (err) {
-      results.push({ file, success: false, error: err.message })
-      if (!options.quiet) {
-        console.error(`✗ Error processing ${file}: ${err.message}`)
+      return { file, success: false, error: err.message }
+    }
+  })
+
+  if (!quiet) {
+    for (const result of results) {
+      if (result.success) {
+        if (write) {
+          console.log(`✓ Formatted: ${result.file}`)
+        }
+      } else {
+        console.error(`✗ Error processing ${result.file}: ${result.error}`)
       }
     }
   }
+
   return results
 }
-
-// Import configuration from .remarkrc.js
-// Suppress console output during import to avoid MDD warnings in nuclear mode
-const originalLog = console.log
-const originalInfo = console.info
-console.log = () => {}
-console.info = () => {}
-
-try {
-  await import(path.join(process.cwd(), '.remarkrc.js'))
-} catch {
-  // Restore console before warning
-  console.log = originalLog
-  console.info = originalInfo
-  console.warn('⚠️  No .remarkrc.js found in current directory, using default config')
-}
-
-// Restore console
-console.log = originalLog
-console.info = originalInfo
 
 /**
  * Show help text
@@ -102,7 +312,7 @@ OPTIONS:
   --nuclear          Run complete lint+fix workflow (alias for nuclear command)
 
 AUTOFORMAT OPTIONS:
-  --plugins <dir>    Load custom formatting plugins
+  --plugins <path>   Load custom formatting plugins (directory or file)
   --recursive, -r    Process directories recursively
   --semantic         Apply semantic line breaks at sentence boundaries
   --smart-quotes     Convert straight quotes to curly quotes
@@ -190,7 +400,7 @@ async function getFiles(args, globPattern) {
  * Create a configured remark processor
  */
 function createRemarkProcessor(options = {}) {
-  const { lintOnly = false } = options
+  const { lintOnly = false, typography = false } = options
 
   // Build processor
   let processor = remark().use(remarkFrontmatter, ['yaml']).use(remarkGfm)
@@ -200,6 +410,10 @@ function createRemarkProcessor(options = {}) {
     .use(remarkPresetLintRecommended)
     .use(remarkPresetLintConsistent)
     .use(remarkPresetLintMarkdownStyleGuide)
+
+  if (typography) {
+    processor = processor.use(remarkTypography)
+  }
 
   // Add stringify for formatting (unless lint-only)
   if (!lintOnly) {
@@ -224,15 +438,23 @@ function createRemarkProcessor(options = {}) {
  * Process files with remark
  */
 async function processFiles(files, options = {}) {
-  const { write = false, quiet = false, lintOnly = false } = options
+  const {
+    write = false,
+    quiet = false,
+    lintOnly = false,
+    typography = false,
+    concurrency = DEFAULT_CONCURRENCY,
+  } = options
+
+  await ensureRemarkConfigLoaded({ quiet })
 
   let hasErrors = false
   let processedCount = 0
 
-  for (const filePath of files) {
+  const outcomes = await mapWithConcurrency(files, concurrency, async (filePath) => {
     try {
       const file = await read(filePath)
-      let processor = createRemarkProcessor({ lintOnly })
+      let processor = createRemarkProcessor({ lintOnly, typography })
 
       if (!lintOnly && (filePath.endsWith('.mdx') || filePath.endsWith('.mdd'))) {
         processor = processor.use(remarkStringify, {
@@ -250,29 +472,57 @@ async function processFiles(files, options = {}) {
       }
 
       const result = await processor.process(file)
-
-      if (result.messages.length > 0) {
-        if (!quiet) {
-          console.error(reporter(result))
-        }
-        hasErrors = true
-      }
+      const reportText = result.messages.length > 0 ? reporter(result) : null
+      const outputText = String(result)
 
       if (write && !lintOnly) {
-        await fs.writeFile(filePath, String(result))
-        if (!quiet) {
-          console.log(`✓ Formatted: ${filePath}`)
-        }
-        processedCount++
-      } else if (!write && !lintOnly && !quiet) {
-        console.log(`\n${'='.repeat(60)}`)
-        console.log(`File: ${filePath}`)
-        console.log('='.repeat(60))
-        console.log(String(result))
+        await fs.writeFile(filePath, outputText)
+      }
+
+      return {
+        filePath,
+        success: true,
+        reportText,
+        outputText,
       }
     } catch (err) {
-      console.error(`✗ Error processing ${filePath}:`, err.message)
+      return {
+        filePath,
+        success: false,
+        error: err.message,
+      }
+    }
+  })
+
+  for (const outcome of outcomes) {
+    if (!outcome.success) {
+      if (!quiet) {
+        console.error(`✗ Error processing ${outcome.filePath}: ${outcome.error}`)
+      }
       hasErrors = true
+      continue
+    }
+
+    if (outcome.reportText) {
+      if (!quiet) {
+        console.error(outcome.reportText)
+      }
+      hasErrors = true
+    }
+
+    if (write && !lintOnly) {
+      processedCount += 1
+      if (!quiet) {
+        console.log(`✓ Formatted: ${outcome.filePath}`)
+      }
+      continue
+    }
+
+    if (!write && !lintOnly && !quiet) {
+      console.log(`\n${'='.repeat(60)}`)
+      console.log(`File: ${outcome.filePath}`)
+      console.log('='.repeat(60))
+      console.log(outcome.outputText)
     }
   }
 
@@ -487,20 +737,11 @@ async function runNuclearMode(files, options = {}) {
  * Check if oxlint-mdx is available in the project
  */
 async function checkOxlintMdxAvailable() {
-  const probePath = path.join(process.cwd(), '.oxlint-mdx-probe.md')
-
   try {
-    await fs.writeFile(probePath, '# probe\n', 'utf8')
-    execSync(`npx oxlint-mdx --no-remark "${probePath}"`, { stdio: 'pipe' })
+    execSync('npx --no-install oxlint-mdx --version', { stdio: 'pipe' })
     return true
   } catch {
     return false
-  } finally {
-    try {
-      await fs.rm(probePath, { force: true })
-    } catch {
-      // Ignore probe cleanup failures.
-    }
   }
 }
 
@@ -583,23 +824,23 @@ async function main() {
   const command = args[0]
   const commandArgs = args.slice(1)
 
-  // Parse options
-  const options = {
-    quiet: commandArgs.includes('--quiet') ?? commandArgs.includes('-q'),
-    nuclear: commandArgs.includes('--nuclear'),
-    glob: null,
+  let parsedArgs
+  try {
+    parsedArgs = parseCommandArgs(commandArgs)
+  } catch (err) {
+    console.error(`Error: ${err.message}`)
+    process.exit(1)
   }
 
-  // Extract glob pattern
-  const globIndex = commandArgs.findIndex((arg) => arg === '--glob')
-  if (globIndex !== -1 && commandArgs[globIndex + 1]) {
-    options.glob = commandArgs[globIndex + 1]
+  // Parse options
+  const options = {
+    quiet: parsedArgs.flags.has('--quiet') || parsedArgs.flags.has('-q'),
+    nuclear: parsedArgs.flags.has('--nuclear'),
+    glob: parsedArgs.values.get('--glob') ?? null,
   }
 
   // Filter out option flags to get file arguments
-  const fileArgs = commandArgs.filter(
-    (arg) => !arg.startsWith('--') && !arg.startsWith('-') && arg !== options.glob,
-  )
+  const fileArgs = parsedArgs.positional
 
   // Execute command
   switch (command) {
@@ -679,7 +920,8 @@ async function main() {
     case 'setup': {
       // Import and run setup.js
       const setupPath = new URL('./setup.js', import.meta.url)
-      await import(setupPath)
+      const { setup } = await import(setupPath)
+      await setup()
       break
     }
 
@@ -696,63 +938,51 @@ async function main() {
 
     case 'autoformat': {
       // Parse autoformat-specific options
-      const recursive = commandArgs.includes('--recursive') ?? commandArgs.includes('-r')
+      const recursive = parsedArgs.flags.has('--recursive') || parsedArgs.flags.has('-r')
 
       // Parse typography and formatting options
-      const autoMode = commandArgs.includes('--auto')
-      const semanticBreaks = autoMode ?? commandArgs.includes('--semantic')
-      const smartQuotes = autoMode ?? commandArgs.includes('--smart-quotes')
-      const ellipsis = autoMode ?? commandArgs.includes('--ellipsis')
+      const autoMode = parsedArgs.flags.has('--auto')
+      const semanticBreaks = autoMode || parsedArgs.flags.has('--semantic')
+      const smartQuotes = autoMode || parsedArgs.flags.has('--smart-quotes')
+      const ellipsis = autoMode || parsedArgs.flags.has('--ellipsis')
+
+      const pluginsPath = parsedArgs.values.get('--plugins') ?? null
 
       // Parse width option
       let wrapWidth = 88
-      const widthIndex = commandArgs.indexOf('--width')
-      if (widthIndex !== -1 && commandArgs[widthIndex + 1]) {
-        wrapWidth = Number.parseInt(commandArgs[widthIndex + 1], 10)
+      const widthValue = parsedArgs.values.get('--width')
+      if (widthValue) {
+        wrapWidth = Number.parseInt(widthValue, 10)
+      }
+
+      if (!Number.isFinite(wrapWidth) || wrapWidth <= 0) {
+        console.error(`Error: Invalid --width value: ${widthValue}`)
+        process.exit(1)
       }
 
       // Get files to process
-      let filesToProcess = []
-      if (options.glob) {
-        filesToProcess = await glob(options.glob, {
-          ignore: ['node_modules/**', '.git/**'],
+      let filesToProcess
+      try {
+        filesToProcess = await resolveTextInputFiles(fileArgs, {
+          globPattern: options.glob,
+          recursive,
         })
-      } else if (fileArgs.length > 0) {
-        // Check if arguments are files or directories
-        for (const arg of fileArgs) {
-          try {
-            const stat = await fs.stat(arg)
-            if (stat.isDirectory()) {
-              if (recursive) {
-                const pattern = path.join(arg, '**/*.{txt,md,mdx,mdc,mdd}')
-                const dirFiles = await glob(pattern, {
-                  ignore: ['node_modules/**', '.git/**'],
-                })
-                filesToProcess.push(...dirFiles)
-              } else {
-                console.error(
-                  `Error: ${arg} is a directory. Use --recursive to process directories.`,
-                )
-                process.exit(1)
-              }
-            } else {
-              filesToProcess.push(arg)
-            }
-          } catch {
-            console.error(`Error: Cannot access ${arg}`)
-            process.exit(1)
-          }
-        }
-      } else {
-        // Default: find all text and markdown files
-        filesToProcess = await glob('**/*.{txt,md,mdx,mdc,mdd}', {
-          ignore: ['node_modules/**', '.git/**'],
-        })
+      } catch (err) {
+        console.error(`Error: ${err.message}`)
+        process.exit(1)
       }
 
       if (filesToProcess.length === 0) {
         console.log('No files found to auto-format')
         return
+      }
+
+      let customRules = []
+      try {
+        customRules = await loadAutoformatPlugins(pluginsPath, { quiet: options.quiet })
+      } catch (err) {
+        console.error(`Error: ${err.message}`)
+        process.exit(1)
       }
 
       if (!options.quiet) {
@@ -769,6 +999,7 @@ async function main() {
         smartQuotes,
         smartEllipsis: ellipsis,
         wrapWidth,
+        customRules,
       })
 
       // Format files
@@ -799,53 +1030,32 @@ async function main() {
 
     case 'draft': {
       // Parse draft-specific options
-      const dryRun = commandArgs.includes('--dry-run')
-      const polish = commandArgs.includes('--polish')
-      const recursive = commandArgs.includes('--recursive') ?? commandArgs.includes('-r')
+      const dryRun = parsedArgs.flags.has('--dry-run')
+      const polish = parsedArgs.flags.has('--polish')
+      const recursive = parsedArgs.flags.has('--recursive') || parsedArgs.flags.has('-r')
 
       // Parse header level option
       let headerLevel = 3
-      const headerLevelIndex = commandArgs.indexOf('--header-level')
-      if (headerLevelIndex !== -1 && commandArgs[headerLevelIndex + 1]) {
-        headerLevel = Number.parseInt(commandArgs[headerLevelIndex + 1], 10)
+      const headerLevelValue = parsedArgs.values.get('--header-level')
+      if (headerLevelValue) {
+        headerLevel = Number.parseInt(headerLevelValue, 10)
+      }
+
+      if (!Number.isInteger(headerLevel) || headerLevel < 1 || headerLevel > 6) {
+        console.error(`Error: Invalid --header-level value: ${headerLevelValue}`)
+        process.exit(1)
       }
 
       // Get files to process
-      let filesToProcess = []
-      if (options.glob) {
-        filesToProcess = await glob(options.glob, {
-          ignore: ['node_modules/**', '.git/**'],
+      let filesToProcess
+      try {
+        filesToProcess = await resolveTextInputFiles(fileArgs, {
+          globPattern: options.glob,
+          recursive,
         })
-      } else if (fileArgs.length > 0) {
-        for (const arg of fileArgs) {
-          try {
-            const stat = await fs.stat(arg)
-            if (stat.isDirectory()) {
-              if (recursive) {
-                const pattern = path.join(arg, '**/*.{txt,md,mdx,mdc,mdd}')
-                const dirFiles = await glob(pattern, {
-                  ignore: ['node_modules/**', '.git/**'],
-                })
-                filesToProcess.push(...dirFiles)
-              } else {
-                console.error(
-                  `Error: ${arg} is a directory. Use --recursive to process directories.`,
-                )
-                process.exit(1)
-              }
-            } else {
-              filesToProcess.push(arg)
-            }
-          } catch {
-            console.error(`Error: Cannot access ${arg}`)
-            process.exit(1)
-          }
-        }
-      } else {
-        // Default: find all text and markdown files
-        filesToProcess = await glob('**/*.{txt,md,mdx,mdc,mdd}', {
-          ignore: ['node_modules/**', '.git/**'],
-        })
+      } catch (err) {
+        console.error(`Error: ${err.message}`)
+        process.exit(1)
       }
 
       if (filesToProcess.length === 0) {
@@ -864,9 +1074,13 @@ async function main() {
       const processor = new TextProcessor({
         nlp: true,
         firstLineTitle: true,
+        smartTitleDetection: true,
+        normalizeHeadings: true,
         detectLabels: true,
         detectFolders: true,
         detectLists: true,
+        reflowParagraphs: true,
+        correctCommonTypos: true,
         headerLevel,
       })
 
@@ -881,7 +1095,8 @@ async function main() {
             // Optionally run through remark pipeline
             let finalContent = formatted
             if (polish) {
-              const processor = createRemarkProcessor({ lintOnly: false })
+              await ensureRemarkConfigLoaded({ quiet: options.quiet })
+              const processor = createRemarkProcessor({ lintOnly: false, typography: true })
 
               // Handle MDX/MDD specifics for polish if needed
               if (filePath.endsWith('.mdx') || filePath.endsWith('.mdd')) {
@@ -926,6 +1141,7 @@ async function main() {
         await processFiles(filesToProcess, {
           write: true,
           quiet: options.quiet,
+          typography: true,
         })
       }
 

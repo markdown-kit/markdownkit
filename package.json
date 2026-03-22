@@ -1,6 +1,6 @@
 {
   "name": "@markdownkit/markdownkit",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
   "keywords": [
     "formatter",
@@ -63,14 +63,15 @@
     "process:safe": "pnpm run format:check-remark && pnpm run lint:all",
     "nuclear": "node cli.js nuclear",
     "clean-cache": "rm -rf .remark-cache",
+    "test:cli": "node --test test/**/*.test.mjs",
     "test": "pnpm run process:safe",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
     "lint:ci": "oxlint --deny-warnings .",
     "lint:fix": "oxlint --fix .",
-    "lint:fix-unsafe": "oxlint --import-plugin node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions --fix-dangerously .",
-    "check:fix-suggestions": "oxlint --import-plugin node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions . && oxfmt --write .",
+    "lint:fix-unsafe": "oxlint --import-plugin --node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions --fix-dangerously .",
+    "check:fix-suggestions": "oxlint --import-plugin --node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions . && oxfmt --write .",
     "check": "pnpm run format:check && pnpm run lint:ci",
     "check:full": "pnpm run check && pnpm run test"
   },

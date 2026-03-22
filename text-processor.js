@@ -35,14 +35,19 @@ const defaultOptions = {
   detectLists: true, // Convert indented lines to list items
   detectLabels: true, // Convert "Key: value" to "**Key:** value"
   firstLineTitle: true, // Convert first line to H1
+  smartTitleDetection: true, // Only promote first line when it looks like a title
+  normalizeHeadings: true, // Capitalize first letter in headings
 
   // Formatting options
   headerLevel: 3, // Default header level for folders
   wrapWidth: 88, // Line wrap width
   semanticBreaks: false, // Break at sentence boundaries
+  customRules: [], // Optional custom transform rules loaded from plugins
+  reflowParagraphs: false, // Rejoin hard-wrapped rough text into paragraphs
   preserveCodeBlocks: true, // Don't modify code blocks
   collapseBlankLines: true, // Collapse multiple blank lines
   ensurePunctuation: true, // Add period to lines without punctuation
+  correctCommonTypos: false, // Apply light typo correction pass
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -50,6 +55,16 @@ const defaultOptions = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SENTENCE_ENDINGS = /[.!?:;]$/
+const STRUCTURAL_LINE = /^(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|\|)/
+
+const COMMON_TYPO_REPLACEMENTS = [
+  { pattern: /\bacuracy\b/gi, replacement: 'accuracy' },
+  { pattern: /\brecieve\b/gi, replacement: 'receive' },
+  { pattern: /\bseperate\b/gi, replacement: 'separate' },
+  { pattern: /\bdefinately\b/gi, replacement: 'definitely' },
+  { pattern: /\boccured\b/gi, replacement: 'occurred' },
+  { pattern: /\b(have|has|had)\s+setup\b/gi, replacement: '$1 set up' },
+]
 
 const SKIP_PUNCTUATION_PATTERNS = [
   /^#+\s/, // Headings
@@ -180,15 +195,26 @@ export class TextProcessor {
    * @returns {Promise<string>} Processed text
    */
   async process(text) {
-    // Step 1: Structure detection
-    let result = this.detectStructure(text)
+    // Step 1: Apply custom plugin rules
+    let result = this.applyCustomRules(text)
 
-    // Step 2: NLP processing (if enabled)
+    // Step 2: Structure detection
+    result = this.detectStructure(result)
+
+    // Step 3: Reflow rough, hard-wrapped paragraphs
+    if (this.options.reflowParagraphs) {
+      result = this.reflowParagraphs(result)
+    }
+
+    // Step 4: NLP processing (if enabled)
     if (this.options.nlp) {
       result = await this.applyNLP(result)
     }
 
-    // Step 3: Final cleanup
+    // Step 5: Optional semantic line breaks
+    result = this.applySemanticBreaks(result)
+
+    // Step 6: Final cleanup
     result = this.cleanup(result)
 
     return result
@@ -200,13 +226,24 @@ export class TextProcessor {
    * @returns {string} Processed text
    */
   processSync(text) {
-    // Step 1: Structure detection
-    let result = this.detectStructure(text)
+    // Step 1: Apply custom plugin rules
+    let result = this.applyCustomRules(text)
 
-    // Step 2: Basic cleanup (without NLP)
+    // Step 2: Structure detection
+    result = this.detectStructure(result)
+
+    // Step 3: Reflow rough, hard-wrapped paragraphs
+    if (this.options.reflowParagraphs) {
+      result = this.reflowParagraphs(result)
+    }
+
+    // Step 4: Basic cleanup (without NLP)
     result = this.basicCleanup(result)
 
-    // Step 3: Final cleanup
+    // Step 5: Optional semantic line breaks
+    result = this.applySemanticBreaks(result)
+
+    // Step 6: Final cleanup
     result = this.cleanup(result)
 
     return result
@@ -263,10 +300,21 @@ export class TextProcessor {
         continue
       }
 
-      // RULE: First non-empty line becomes H1
-      if (this.options.firstLineTitle && isFirstNonEmptyLine && !trimmed.startsWith('#')) {
-        processed.push(`# ${trimmed}`)
-        processed.push('')
+      // RULE: First non-empty line can become H1 (smart detection)
+      if (
+        this.options.firstLineTitle &&
+        isFirstNonEmptyLine &&
+        !trimmed.startsWith('#') &&
+        !this.isStructuralLine(trimmed)
+      ) {
+        if (this.shouldPromoteFirstLineToTitle(trimmed)) {
+          processed.push(`# ${this.formatTitle(trimmed)}`)
+          processed.push('')
+          isFirstNonEmptyLine = false
+          continue
+        }
+
+        processed.push(trimmed)
         isFirstNonEmptyLine = false
         continue
       }
@@ -328,10 +376,14 @@ export class TextProcessor {
         continue
       }
 
+      if (trimmed.startsWith('#')) {
+        result.push(this.options.normalizeHeadings ? this.normalizeHeadingCase(line) : line)
+        continue
+      }
+
       // Skip code blocks, headings, and special lines
       if (
         inCodeBlock ||
-        trimmed.startsWith('#') ||
         trimmed.startsWith('-') ||
         trimmed.startsWith('*') ||
         trimmed.startsWith('>') ||
@@ -345,7 +397,8 @@ export class TextProcessor {
 
       // Process with retext
       try {
-        const processed = await processor.process(trimmed)
+        const corrected = this.applyCommonTypos(trimmed)
+        const processed = await processor.process(corrected)
         let nlpResult = String(processed).trim()
 
         // Ensure punctuation if needed
@@ -373,10 +426,13 @@ export class TextProcessor {
       .map((line) => {
         const trimmed = line.trim()
 
+        if (trimmed.startsWith('#')) {
+          return this.options.normalizeHeadings ? this.normalizeHeadingCase(line) : line
+        }
+
         // Skip special lines
         if (
           !trimmed ||
-          trimmed.startsWith('#') ||
           trimmed.startsWith('```') ||
           trimmed.startsWith('-') ||
           trimmed.startsWith('*') ||
@@ -388,6 +444,9 @@ export class TextProcessor {
         }
 
         let result = trimmed
+
+        // Correct common misspellings / phrasing
+        result = this.applyCommonTypos(result)
 
         // Capitalize first letter
         if (this.options.capitalizeSentences && result) {
@@ -466,6 +525,224 @@ export class TextProcessor {
   }
 
   /**
+   * Apply custom plugin rules to text.
+   */
+  applyCustomRules(text) {
+    const rules = Array.isArray(this.options.customRules) ? this.options.customRules : []
+    if (rules.length === 0 || !text) {
+      return text
+    }
+
+    let result = text
+
+    for (const rule of rules) {
+      if (!rule || typeof rule.transform !== 'function') {
+        continue
+      }
+
+      try {
+        if (rule.isMultiLine) {
+          const transformed = rule.transform(result, rule)
+          if (typeof transformed === 'string') {
+            result = transformed
+          }
+          continue
+        }
+
+        if (!(rule.pattern instanceof RegExp)) {
+          continue
+        }
+
+        const lines = result.split('\n')
+        result = lines.map((line) => this.applyCustomRuleToLine(line, rule)).join('\n')
+      } catch (err) {
+        console.warn(`Plugin rule warning (${rule.name ?? 'unnamed'}): ${err.message}`)
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Apply a single custom rule to one line.
+   */
+  applyCustomRuleToLine(line, rule) {
+    const { pattern, transform } = rule
+
+    if (pattern.global) {
+      const matches = [...line.matchAll(pattern)]
+      if (matches.length === 0) {
+        return line
+      }
+
+      let rebuilt = ''
+      let lastIndex = 0
+
+      for (const match of matches) {
+        const start = match.index ?? 0
+        const end = start + match[0].length
+        rebuilt += line.slice(lastIndex, start)
+
+        const replacement = transform(match, line)
+        rebuilt += typeof replacement === 'string' ? replacement : match[0]
+        lastIndex = end
+      }
+
+      rebuilt += line.slice(lastIndex)
+      return rebuilt
+    }
+
+    const match = line.match(pattern)
+    if (!match) {
+      return line
+    }
+
+    const replacement = transform(match, line)
+    if (typeof replacement !== 'string') {
+      return line
+    }
+
+    return line.replace(pattern, replacement)
+  }
+
+  /**
+   * Rejoin rough hard-wrapped prose into proper paragraphs while preserving markdown structure
+   */
+  reflowParagraphs(text) {
+    const lines = text.split('\n')
+    const result = []
+    const paragraphBuffer = []
+    let inCodeBlock = false
+
+    const flushParagraph = () => {
+      if (paragraphBuffer.length === 0) return
+      const paragraph = paragraphBuffer.join(' ').replace(/\s+/g, ' ').trim()
+      if (paragraph) {
+        result.push(paragraph)
+      }
+      paragraphBuffer.length = 0
+    }
+
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim()
+
+      if (trimmed.startsWith('```')) {
+        flushParagraph()
+        inCodeBlock = !inCodeBlock
+        result.push(rawLine)
+        continue
+      }
+
+      if (inCodeBlock) {
+        flushParagraph()
+        result.push(rawLine)
+        continue
+      }
+
+      if (!trimmed) {
+        flushParagraph()
+        result.push('')
+        continue
+      }
+
+      if (this.isStructuralLine(trimmed)) {
+        flushParagraph()
+        result.push(rawLine)
+        continue
+      }
+
+      paragraphBuffer.push(trimmed)
+    }
+
+    flushParagraph()
+
+    return result.join('\n')
+  }
+
+  /**
+   * Lightweight typo correction for common rough-draft mistakes
+   */
+  applyCommonTypos(text) {
+    if (!this.options.correctCommonTypos || !text) {
+      return text
+    }
+
+    let result = text
+    for (const rule of COMMON_TYPO_REPLACEMENTS) {
+      result = result.replace(rule.pattern, rule.replacement)
+    }
+    return result
+  }
+
+  /**
+   * Decide whether the first line is a title or body prose
+   */
+  shouldPromoteFirstLineToTitle(line) {
+    if (!line) return false
+
+    if (!this.options.smartTitleDetection) {
+      return true
+    }
+
+    const trimmed = line.trim()
+    const wordCount = trimmed.split(/\s+/).length
+    const hasTerminalPunctuation = /[.!?;:]$/.test(trimmed)
+    const commaCount = (trimmed.match(/,/g) ?? []).length
+
+    // Plain prose signals
+    if (hasTerminalPunctuation) return false
+    if (trimmed.length > 80) return false
+    if (wordCount > 12) return false
+    if (commaCount > 1) return false
+    if (/^(we|i|the\s+plan|in\s+the\s+process|this|that|there)\b/i.test(trimmed)) {
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * Format heading text for generated titles
+   */
+  formatTitle(text) {
+    const cleaned = text.replace(/[.!?;:]+$/, '').trim()
+    if (!cleaned) return text
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+  }
+
+  /**
+   * Normalize heading first letter case without changing authored wording
+   */
+  normalizeHeadingCase(line) {
+    const match = line.match(/^(#{1,6}\s+)(.+)$/)
+    if (!match) return line
+
+    const [, prefix, title] = match
+    const firstIndex = title.search(/[A-Za-z]/)
+    if (firstIndex === -1) return line
+
+    const firstChar = title[firstIndex]
+    if (firstChar !== firstChar.toLowerCase()) {
+      return line
+    }
+
+    const normalized =
+      title.slice(0, firstIndex) + firstChar.toUpperCase() + title.slice(firstIndex + 1)
+    return `${prefix}${normalized}`
+  }
+
+  /**
+   * Check whether a line is markdown structure that should not be paragraph-reflowed
+   */
+  isStructuralLine(trimmed) {
+    if (!trimmed) return false
+    if (trimmed.startsWith('```')) return true
+    if (trimmed.startsWith('**')) return true
+    if (trimmed === '---') return true
+    return STRUCTURAL_LINE.test(trimmed)
+  }
+
+  /**
    * Apply semantic line breaks
    */
   applySemanticBreaks(text) {
@@ -490,17 +767,24 @@ export class TextProcessor {
         continue
       }
 
-      // Split at sentence boundaries
-      const sentences = line.split(/([.!?]+\s+)(?=[A-Z])/)
+      // Split at sentence boundaries while keeping punctuation with sentence text
+      const sentences = this.extractSentences(line)
+      if (sentences.length <= 1) {
+        result.push(line)
+        continue
+      }
+
       const wrapped = []
       let currentLine = ''
 
-      for (const part of sentences) {
-        if (currentLine.length + part.length > this.options.wrapWidth && currentLine.length > 0) {
+      for (const sentence of sentences) {
+        const candidate = currentLine ? `${currentLine} ${sentence}` : sentence
+
+        if (candidate.length > this.options.wrapWidth && currentLine.length > 0) {
           wrapped.push(currentLine.trim())
-          currentLine = part
+          currentLine = sentence
         } else {
-          currentLine += part
+          currentLine = candidate
         }
       }
 
@@ -512,6 +796,17 @@ export class TextProcessor {
     }
 
     return result.join('\n')
+  }
+
+  /**
+   * Extract sentence-like chunks while keeping punctuation attached.
+   */
+  extractSentences(line) {
+    const matches = line.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g)
+    if (!matches) {
+      return [line.trim()]
+    }
+    return matches.map((chunk) => chunk.trim()).filter(Boolean)
   }
 
   // ═══════════════════════════════════════════════════════════════════════

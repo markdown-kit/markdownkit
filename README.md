@@ -304,9 +304,12 @@ markdownkit autoformat --auto document.md
 
 # Load custom formatting plugins
 markdownkit autoformat --plugins ./my-plugins file.txt
+
+# Load a single plugin file
+markdownkit autoformat --plugins ./plugins/smart-typography.js file.txt
 ```
 
-**Options:** `--semantic`, `--smart-quotes`, `--ellipsis`, `--width <n>`, `--auto`, `--plugins <dir>`
+**Options:** `--semantic`, `--smart-quotes`, `--ellipsis`, `--width <n>`, `--auto`, `--plugins <path>`
 
 ### 📝 Draft Mode (NLP-Enhanced)
 
@@ -321,6 +324,9 @@ markdownkit draft --dry-run messy.txt
 
 # Use H2 for folder headers (default: H3)
 markdownkit draft --header-level 2 file.txt
+
+# Add remark polish + typography normalization
+markdownkit draft --polish rough.md
 ```
 
 **NLP Transformations:**
@@ -329,6 +335,11 @@ markdownkit draft --header-level 2 file.txt
 - `"hello"` → `"hello"` (smart quotes)
 - `...` → `…` (ellipsis)
 - `project-name/` → `### Project Name` (folder headers)
+- Smart first-line title detection (only promotes real title-like lines to `# Heading`)
+- Paragraph reflow for hard-wrapped notes (`line\nline` → single paragraph)
+- Common typo/phrase fixes (`acuracy` → `accuracy`, `have setup` → `have set up`)
+
+When `--polish` is enabled, draft output is additionally passed through the remark formatter with typography transforms for a final markdown cleanup pass.
 
 ### Command Aliases
 
@@ -377,8 +388,10 @@ If you're working on the markdownkit project itself:
 
 ```bash
 # Formatting
-pnpm run format         # Apply fixes using remark-cli
-pnpm run format:check   # Preview changes
+pnpm run format         # Apply code formatting with oxfmt
+pnpm run format:check   # Check code formatting with oxfmt
+pnpm run format:remark  # Apply markdown formatting with remark
+pnpm run format:check-remark  # Check markdown formatting with remark
 
 # Linting
 pnpm run lint           # Remark-lint only
