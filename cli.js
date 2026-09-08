@@ -35,14 +35,6 @@ const DEFAULT_IGNORE_PATTERNS = ['node_modules/**', '.git/**']
 const packageRequire = createRequire(import.meta.url)
 
 /**
- * Keep technical snake_case tokens readable after markdown stringification.
- * Example: usr\_abc -> usr_abc, statement\_timeout -> statement_timeout.
- */
-function normalizeTechnicalUnderscores(text) {
-  return text.replace(/([\p{L}\p{N}])\\_([\p{L}\p{N}])/gu, '$1_$2')
-}
-
-/**
  * Run async work items with a fixed concurrency limit.
  */
 async function mapWithConcurrency(items, concurrency, worker) {
@@ -522,7 +514,7 @@ async function processFiles(files, options = {}) {
 
       const result = await processor.process(file)
       const reportText = result.messages.length > 0 ? reporter(result) : null
-      const outputText = normalizeTechnicalUnderscores(String(result))
+      const outputText = String(result)
 
       if (write && !lintOnly) {
         await fs.writeFile(filePath, outputText)
@@ -1193,7 +1185,7 @@ async function main() {
                 filePath,
               })
               const result = await remarkProcessor.process({ path: filePath, value: formatted })
-              finalContent = normalizeTechnicalUnderscores(String(result))
+              finalContent = String(result)
             }
 
             console.log(`\n${'═'.repeat(60)}`)
