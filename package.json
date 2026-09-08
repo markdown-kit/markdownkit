@@ -77,17 +77,18 @@
     "lint:fix-unsafe": "oxlint --import-plugin --node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions --fix-dangerously .",
     "check:fix-suggestions": "oxlint --import-plugin --node-plugin --type-aware --type-check --vitest-plugin --fix --fix-suggestions . && oxfmt --write .",
     "check": "pnpm run format:check && pnpm run lint:ci",
-    "check:full": "pnpm run check && pnpm run test"
+    "check:full": "pnpm run check && pnpm run test",
+    "release": "release-kit"
   },
   "dependencies": {
     "@adobe/remark-gridtables": "^3.0.20",
     "@code-dot-org/remark-plugins": "^2.0.1",
     "@markdownkit/oxlint-mdx": "^2.2.3",
-    "@markdownkit/remark-mdd": "^2.2.2",
+    "@markdownkit/remark-mdd": "^2.2.3",
     "@theguild/remark-mermaid": "^0.3.0",
-    "fumadocs-docgen": "^3.0.10",
+    "fumadocs-docgen": "^3.1.0",
     "glob": "^13.0.6",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^5.3.0",
     "rehype-remark": "^10.0.1",
     "remark": "latest",
     "remark-directive": "^4.0.0",
@@ -125,7 +126,7 @@
     "remark-lint-no-empty-sections": "^4.0.0",
     "remark-lint-no-heading-indent": "^5.0.1",
     "remark-lint-no-heading-punctuation": "^4.0.1",
-    "remark-lint-no-trailing-spaces": "^4.0.3",
+    "remark-lint-no-trailing-spaces": "^5.0.0",
     "remark-lint-ordered-list-marker-style": "^4.0.1",
     "remark-lint-ordered-list-marker-value": "^4.0.1",
     "remark-lint-strong-marker": "^4.0.1",
@@ -133,7 +134,7 @@
     "remark-lint-table-pipe-alignment": "^4.1.1",
     "remark-lint-table-pipes": "^5.0.1",
     "remark-lint-unordered-list-marker-style": "^4.0.1",
-    "remark-mdc": "^3.11.0",
+    "remark-mdc": "^3.11.1",
     "remark-mdx": "^3.1.1",
     "remark-mdx-frontmatter": "^5.2.0",
     "remark-preset-lint-consistent": "^6.0.1",
@@ -157,13 +158,14 @@
     "vfile-reporter": "^8.1.1"
   },
   "devDependencies": {
-    "markdown-link-check": "^3.14.2",
-    "oxfmt": "^0.55.0",
-    "oxlint": "^1.70.0",
-    "oxlint-tsgolint": "^0.23.0",
+    "@entro314labs/release-kit": "^1.0.2",
+    "markdown-link-check": "^3.15.0",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "remark-cli": "^12.0.1"
   },
   "engines": {
-    "node": ">=24.x"
+    "node": ">=24.19.0"
   }
 }
