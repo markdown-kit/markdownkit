@@ -20,6 +20,30 @@ export function createAutoformatOptions(options = {}) {
   }
 }
 
+/**
+ * Nuclear-mode step 1 ("safe polish"). The input is already Markdown, so no
+ * structure detection (which would turn indented code into list items, trim
+ * indentation, and bold `Key: value` lines) and no NLP; only typography.
+ */
+export function createNuclearPolishOptions(options = {}) {
+  return {
+    nlp: false,
+    detectStructure: false,
+    firstLineTitle: false,
+    detectLabels: false,
+    detectLists: false,
+    detectFolders: false,
+    reflowParagraphs: false,
+    semanticBreaks: false,
+    smartQuotes: true,
+    smartEllipsis: true,
+    smartDashes: false,
+    wrapWidth: DEFAULT_WRAP_WIDTH,
+    customRules: [],
+    ...options,
+  }
+}
+
 export function createDraftOptions(options = {}) {
   return {
     nlp: true,

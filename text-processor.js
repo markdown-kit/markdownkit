@@ -31,6 +31,7 @@ const defaultOptions = {
   capitalizeSentences: true, // Capitalize first letter of sentences
 
   // Structure detection
+  detectStructure: true, // Run the structure-detection pass at all (rules below)
   detectFolders: true, // Convert "folder/" to "### Folder"
   detectLists: true, // Convert indented lines to list items
   detectLabels: true, // Convert "Key: value" to "**Key:** value"
@@ -206,9 +207,11 @@ export class TextProcessor {
       result = this.reflowParagraphs(result)
     }
 
-    // Step 4: NLP processing (if enabled)
+    // Step 4: NLP processing (if enabled), otherwise typography only
     if (this.options.nlp) {
       result = await this.applyNLP(result)
+    } else {
+      result = this.applyTypography(result)
     }
 
     // Step 5: Optional semantic line breaks
@@ -237,8 +240,9 @@ export class TextProcessor {
       result = this.reflowParagraphs(result)
     }
 
-    // Step 4: Basic cleanup (without NLP)
+    // Step 4: Basic cleanup (without NLP) plus typography
     result = this.basicCleanup(result)
+    result = this.applyTypography(result)
 
     // Step 5: Optional semantic line breaks
     result = this.applySemanticBreaks(result)
@@ -253,6 +257,8 @@ export class TextProcessor {
    * Detect and convert structure in raw text
    */
   detectStructure(text) {
+    if (!this.options.detectStructure) return text
+
     const lines = text.split('\n')
     const processed = []
     let inCodeBlock = false
@@ -366,7 +372,8 @@ export class TextProcessor {
    * straight quotes inside code into curly quotes). Returns the masked line and
    * a `restore` function to reinsert the originals after processing.
    *
-   * Protected: markdown links, inline code spans, autolinks, and bare URLs.
+   * Protected: markdown links, inline code spans, autolinks, inline HTML/JSX
+   * tags, bare URLs, and brace expressions.
    *
    * @param {string} line
    * @returns {{ masked: string, restore: (value: string) => string }}
@@ -384,9 +391,11 @@ export class TextProcessor {
       .replace(/\[[^\]]*\]\([^)]*\)/g, mask)
       // Inline code spans (single or multi backtick).
       .replace(/(`+)[^`]*\1/g, mask)
-      // Autolinks <https://…> and bare URLs.
-      .replace(/<[^>\s]+>/g, mask)
+      // Autolinks <https://…>, inline HTML/JSX tags, and bare URLs.
+      .replace(/<[^>]+>/g, mask)
       .replace(/\bhttps?:\/\/[^\s)]+/g, mask)
+      // MDX/MDC/template expressions such as {props.x} or {{page}}.
+      .replace(/\{[^}]*\}+/g, mask)
 
     const restore = (value) =>
       value.replace(/MKPROTECT(\d+)ENDMK/g, (_token, index) => store[Number(index)] ?? '')
@@ -394,14 +403,68 @@ export class TextProcessor {
     return { masked, restore }
   }
 
-  async applyNLP(text) {
-    const processor = this.initRetextProcessor()
+  /**
+   * Whether any smartypants typography transform is requested.
+   */
+  wantsTypography() {
+    return Boolean(
+      this.options.smartQuotes || this.options.smartEllipsis || this.options.smartDashes,
+    )
+  }
+
+  /**
+   * Lazily build a retext processor that applies ONLY smartypants typography
+   * (quotes, ellipses, dashes). Used when NLP is disabled so the
+   * `smartQuotes`/`smartEllipsis` options still take effect.
+   */
+  initTypographyProcessor() {
+    if (this.typographyProcessor) {
+      return this.typographyProcessor
+    }
+
+    this.typographyProcessor = retext()
+      .use(retextEnglish)
+      .use(retextSmartypants, {
+        quotes: this.options.smartQuotes,
+        dashes: this.options.smartDashes ? 'oldschool' : false,
+        ellipses: this.options.smartEllipsis,
+      })
+      .use(retextStringify)
+
+    return this.typographyProcessor
+  }
+
+  /**
+   * Walk the document line by line, handing prose lines to `transform` and
+   * passing structural lines (fenced code, headings, lists, quotes, tables,
+   * bold labels, blank lines) through untouched.
+   *
+   * @param {string} text
+   * @param {(line: string) => (string | Promise<string>)} transform - receives the trimmed prose line
+   * @param {{ onHeading?: (line: string) => string }} [hooks]
+   * @returns {Promise<string>}
+   */
+  async transformProseLines(text, transform, hooks = {}) {
     const lines = text.split('\n')
     const result = []
     let inCodeBlock = false
+    let inFrontmatter = false
 
-    for (const line of lines) {
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index]
       const trimmed = line.trim()
+
+      // YAML frontmatter is data, never prose.
+      if (index === 0 && trimmed === '---') {
+        inFrontmatter = true
+        result.push(line)
+        continue
+      }
+      if (inFrontmatter) {
+        if (trimmed === '---') inFrontmatter = false
+        result.push(line)
+        continue
+      }
 
       // Track code blocks
       if (trimmed.startsWith('```')) {
@@ -410,8 +473,8 @@ export class TextProcessor {
         continue
       }
 
-      if (trimmed.startsWith('#')) {
-        result.push(this.options.normalizeHeadings ? this.normalizeHeadingCase(line) : line)
+      if (!inCodeBlock && trimmed.startsWith('#')) {
+        result.push(hooks.onHeading ? hooks.onHeading(line) : line)
         continue
       }
 
@@ -429,29 +492,109 @@ export class TextProcessor {
         continue
       }
 
-      // Process with retext
-      try {
-        // Mask inline code / links / URLs so smartypants & typo fixes do not
-        // corrupt them (e.g. `npm i --save` -> em-dash), then restore.
-        const { masked, restore } = this.protectInlineConstructs(trimmed)
-        const corrected = this.applyCommonTypos(masked)
-        const processed = await processor.process(corrected)
-        let nlpResult = restore(String(processed).trim())
-
-        // Ensure punctuation if needed
-        if (this.options.ensurePunctuation) {
-          nlpResult = this.ensurePunctuation(nlpResult)
-        }
-
-        result.push(nlpResult)
-      } catch (err) {
-        // Log warning for NLP processing failure but continue with original line
-        console.warn(`NLP processing warning: ${err.message}`)
-        result.push(line)
-      }
+      result.push(await transform(trimmed))
     }
 
     return result.join('\n')
+  }
+
+  /**
+   * Apply smartypants typography to prose lines without any other NLP.
+   * Synchronous so both `process()` and `processSync()` can use it.
+   *
+   * @param {string} text
+   * @returns {string}
+   */
+  applyTypography(text) {
+    if (!this.wantsTypography()) {
+      return text
+    }
+
+    const processor = this.initTypographyProcessor()
+    const lines = text.split('\n')
+    const result = []
+    let inCodeBlock = false
+    let inFrontmatter = false
+
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index]
+      const trimmed = line.trim()
+
+      if (index === 0 && trimmed === '---') {
+        inFrontmatter = true
+        result.push(line)
+        continue
+      }
+      if (inFrontmatter) {
+        if (trimmed === '---') inFrontmatter = false
+        result.push(line)
+        continue
+      }
+
+      if (trimmed.startsWith('```')) {
+        inCodeBlock = !inCodeBlock
+        result.push(line)
+        continue
+      }
+
+      if (
+        inCodeBlock ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('-') ||
+        trimmed.startsWith('*') ||
+        trimmed.startsWith('>') ||
+        trimmed.startsWith('|') ||
+        trimmed.startsWith('**') ||
+        trimmed === ''
+      ) {
+        result.push(line)
+        continue
+      }
+
+      // Preserve indentation and trailing whitespace (a two-space hard break
+      // is meaningful): only the prose content is transformed.
+      const indent = line.slice(0, line.length - line.trimStart().length)
+      const trailing = line.slice(line.trimEnd().length)
+      const { masked, restore } = this.protectInlineConstructs(trimmed)
+      const processed = String(processor.processSync(masked)).trim()
+      result.push(`${indent}${restore(processed)}${trailing}`)
+    }
+
+    return result.join('\n')
+  }
+
+  async applyNLP(text) {
+    const processor = this.initRetextProcessor()
+
+    return this.transformProseLines(
+      text,
+      async (trimmed) => {
+        // Process with retext
+        try {
+          // Mask inline code / links / URLs so smartypants & typo fixes do not
+          // corrupt them (e.g. `npm i --save` -> em-dash), then restore.
+          const { masked, restore } = this.protectInlineConstructs(trimmed)
+          const corrected = this.applyCommonTypos(masked)
+          const processed = await processor.process(corrected)
+          let nlpResult = restore(String(processed).trim())
+
+          // Ensure punctuation if needed
+          if (this.options.ensurePunctuation) {
+            nlpResult = this.ensurePunctuation(nlpResult)
+          }
+
+          return nlpResult
+        } catch (err) {
+          // Log warning for NLP processing failure but continue with original line
+          console.warn(`NLP processing warning: ${err.message}`)
+          return trimmed
+        }
+      },
+      {
+        onHeading: (line) =>
+          this.options.normalizeHeadings ? this.normalizeHeadingCase(line) : line,
+      },
+    )
   }
 
   /**
@@ -509,27 +652,62 @@ export class TextProcessor {
    * Final cleanup pass
    */
   cleanup(text) {
-    let result = text
+    const lines = text.split('\n')
+    const result = []
+    let fenceMarker = null
+    let previousWasHeading = false
 
-    // Ensure blank line before headings
-    result = result.replace(/([^\n])\n(#{1,6}\s)/g, '$1\n\n$2')
+    const pushBlank = () => {
+      if (result.length > 0 && result.at(-1) !== '') {
+        result.push('')
+      }
+    }
 
-    // Ensure blank line after headings
-    result = result.replace(/(#{1,6}\s.+)\n([^#\n])/g, '$1\n\n$2')
+    for (const line of lines) {
+      const trimmed = line.trim()
 
-    // Collapse multiple blank lines
-    result = result.replace(/\n{3,}/g, '\n\n')
+      // Fenced code is verbatim: no heading spacing, no blank-line collapsing,
+      // no whitespace trimming inside the block.
+      const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/)
+      if (fenceMatch) {
+        const marker = fenceMatch[1][0]
+        if (fenceMarker === null) {
+          fenceMarker = marker
+        } else if (fenceMarker === marker) {
+          fenceMarker = null
+        }
+        result.push(line.trimEnd())
+        previousWasHeading = false
+        continue
+      }
+      if (fenceMarker !== null) {
+        result.push(line)
+        continue
+      }
 
-    // Trim trailing whitespace on each line
-    result = result
-      .split('\n')
-      .map((l) => l.trimEnd())
-      .join('\n')
+      if (trimmed === '') {
+        // Collapse runs of blank lines to a single blank line
+        pushBlank()
+        continue
+      }
+
+      // Trim trailing whitespace, but keep a Markdown hard break (exactly two
+      // trailing spaces after content), which is meaningful.
+      const hardBreak = /\S {2}$/.test(line)
+      const cleaned = hardBreak ? `${line.trimEnd()}  ` : line.trimEnd()
+      const isHeading = /^#{1,6}\s/.test(cleaned)
+
+      // Ensure blank line before headings and after headings
+      if (isHeading || previousWasHeading) {
+        pushBlank()
+      }
+
+      result.push(cleaned)
+      previousWasHeading = isHeading
+    }
 
     // Ensure single trailing newline
-    result = `${result.trim()}\n`
-
-    return result
+    return `${result.join('\n').trim()}\n`
   }
 
   /**
@@ -787,9 +965,38 @@ export class TextProcessor {
 
     const lines = text.split('\n')
     const result = []
+    let fenceMarker = null
+    let inFrontmatter = false
 
-    for (const line of lines) {
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index]
       const trimmed = line.trim()
+
+      // Only prose paragraphs may be re-broken. YAML frontmatter, fenced code
+      // and table rows are structural: splitting them at sentence boundaries
+      // corrupts the document.
+      if (index === 0 && trimmed === '---') {
+        inFrontmatter = true
+        result.push(line)
+        continue
+      }
+      if (inFrontmatter) {
+        if (trimmed === '---') inFrontmatter = false
+        result.push(line)
+        continue
+      }
+      const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/)
+      if (fenceMatch) {
+        const marker = fenceMatch[1][0]
+        if (fenceMarker === null) fenceMarker = marker
+        else if (fenceMarker === marker) fenceMarker = null
+        result.push(line)
+        continue
+      }
+      if (fenceMarker !== null) {
+        result.push(line)
+        continue
+      }
 
       // Skip short lines and special content
       if (
@@ -797,7 +1004,7 @@ export class TextProcessor {
         trimmed.startsWith('-') ||
         trimmed.startsWith('*') ||
         trimmed.startsWith('>') ||
-        trimmed.startsWith('```') ||
+        trimmed.startsWith('|') ||
         trimmed.length < this.options.wrapWidth
       ) {
         result.push(line)
