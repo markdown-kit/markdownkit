@@ -255,6 +255,44 @@ test('format honors project .remarkrc.js settings without explicit plugins', asy
   assert.match(output, /^\* item/m)
 })
 
+test('check fails on formatting drift without changing the file', async () => {
+  const tmp = await makeTempDir('markdownkit-test-check-drift')
+  const inputPath = path.join(tmp, 'document.md')
+  const input = '# Title\n\n\nParagraph\n'
+  await writeFile(inputPath, input, 'utf8')
+
+  const result = runCli(['check', inputPath], tmp)
+
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Formatting differs/u)
+  assert.equal(await readFile(inputPath, 'utf8'), input)
+})
+
+test('check succeeds for an already formatted file', async () => {
+  const tmp = await makeTempDir('markdownkit-test-check-clean')
+  const inputPath = path.join(tmp, 'document.md')
+  await writeFile(inputPath, '# Title\n\nParagraph\n', 'utf8')
+
+  const result = runCli(['check', inputPath], tmp)
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.doesNotMatch(result.stderr, /Formatting differs/u)
+})
+
+test('format honors semantic line-break and wrap-width options', async () => {
+  const { formatMarkdownText } = await import('../remark-processor.js')
+  const source =
+    '# Title\n\nThis sentence is deliberately long enough to cross the configured width. This sentence must begin on a new semantic line.\n'
+
+  const formatted = await formatMarkdownText(source, {
+    filePath: 'document.md',
+    semanticBreaks: true,
+    wrapWidth: 70,
+  })
+
+  assert.match(formatted, /width\.\nThis sentence/u)
+})
+
 test('draft dry-run polish completes successfully', async () => {
   const tmp = await makeTempDir('markdownkit-test-draft-polish')
   const inputPath = path.join(tmp, 'draft.md')
@@ -265,4 +303,88 @@ test('draft dry-run polish completes successfully', async () => {
   assert.equal(result.status, 0, result.stderr)
   assert.doesNotMatch(result.stdout + result.stderr, /is not defined/)
   assert.match(result.stdout, /File:/)
+})
+
+test('semantic breaks never split frontmatter, table rows, or fenced code', async () => {
+  const { formatMarkdownText } = await import('../remark-processor.js')
+  const longSentencePair =
+    'This sentence is deliberately long enough to cross the configured width. This sentence must stay put.'
+  const source = `---
+title: "${longSentencePair}"
+---
+
+# Title
+
+| Column | Value |
+| ------ | ----- |
+| Row | ${longSentencePair} |
+
+\`\`\`text
+${longSentencePair}
+\`\`\`
+
+${longSentencePair}
+`
+
+  const formatted = await formatMarkdownText(source, {
+    filePath: 'document.md',
+    semanticBreaks: true,
+    wrapWidth: 60,
+  })
+
+  assert.ok(formatted.includes(`title: "${longSentencePair}"`))
+  assert.match(
+    formatted,
+    /\| Row {2,}\| This sentence is deliberately long enough to cross the configured width\. This sentence must stay put\. \|/u,
+  )
+  assert.match(
+    formatted,
+    /```text\nThis sentence is deliberately long enough to cross the configured width\. This sentence must stay put\.\n```/u,
+  )
+  // The prose paragraph is the only place a semantic break is inserted.
+  assert.match(formatted, /width\.\nThis sentence must stay put\.\n$/u)
+})
+
+test('nuclear polish preset applies typography without restructuring existing markdown', async () => {
+  const { TextProcessor } = await import('../text-processor.js')
+  const { createNuclearPolishOptions } = await import('../command-presets.js')
+  const source = `---
+title: "keep 'straight' quotes..."
+---
+
+# Title
+
+Phone: call "the office" first...
+See <a href="x">link</a> and {props.value} and "quoted" text.
+Line with a hard break  
+continues here.
+
+    indented code stays code
+
+\`\`\`sh
+# not a heading, "quotes" untouched
+\`\`\`
+`
+  const output = await new TextProcessor(createNuclearPolishOptions()).process(source)
+
+  assert.match(output, /^title: "keep 'straight' quotes\.\.\."$/mu)
+  assert.match(output, /Phone: call “the office” first…/u)
+  assert.match(output, /See <a href="x">link<\/a> and \{props\.value\} and “quoted” text\./u)
+  assert.doesNotMatch(output, /\*\*Phone:\*\*/u)
+  assert.match(output, /Line with a hard break {2}\ncontinues here\./u)
+  assert.match(output, /\n {4}indented code stays code\n/u)
+  assert.match(output, /```sh\n# not a heading, "quotes" untouched\n```/u)
+})
+
+test('autoformat honors --smart-quotes without enabling NLP', async () => {
+  const tmp = await makeTempDir('markdownkit-test-smart-quotes')
+  const inputPath = path.join(tmp, 'note.txt')
+  await writeFile(inputPath, 'she said "hello" and left...\n', 'utf8')
+
+  const result = runCli(['autoformat', '-q', '--smart-quotes', '--ellipsis', inputPath], REPO_ROOT)
+
+  assert.equal(result.status, 0, result.stderr)
+  const output = await readFile(inputPath, 'utf8')
+  assert.match(output, /“hello”/u)
+  assert.match(output, /left…/u)
 })

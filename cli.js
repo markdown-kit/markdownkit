@@ -13,13 +13,18 @@ import { pathToFileURL } from 'node:url'
 
 import { validateDocument } from '@markdownkit/remark-mdd/validator'
 import { glob } from 'glob'
-import { remark } from 'remark'
-import remarkTypography from 'remark-typography'
 import { read } from 'to-vfile'
 import { reporter } from 'vfile-reporter'
 
-import { createAutoformatOptions, createDraftOptions } from './command-presets.js'
-import { createMarkdownkitRemarkProcessor, formatMarkdownText } from './remark-processor.js'
+import {
+  createAutoformatOptions,
+  createDraftOptions,
+  createNuclearPolishOptions,
+} from './command-presets.js'
+import {
+  createConfiguredMarkdownkitRemarkProcessor,
+  formatMarkdownText,
+} from './remark-processor.js'
 import { TextProcessor } from './text-processor.js'
 
 const MARKDOWN_EXTENSIONS = ['md', 'mdx', 'mdc', 'mdd']
@@ -28,8 +33,6 @@ const VALUE_OPTIONS = new Set(['--glob', '--width', '--header-level', '--plugins
 const DEFAULT_CONCURRENCY = 4
 const DEFAULT_IGNORE_PATTERNS = ['node_modules/**', '.git/**']
 const packageRequire = createRequire(import.meta.url)
-
-const remarkConfigCache = new Map()
 
 /**
  * Keep technical snake_case tokens readable after markdown stringification.
@@ -105,53 +108,6 @@ function parseCommandArgs(commandArgs) {
   return { flags, values, positional }
 }
 
-/**
- * Load project-level remark config if present.
- */
-async function loadRemarkConfig(cwd = process.cwd()) {
-  const resolvedCwd = path.resolve(cwd)
-  if (remarkConfigCache.has(resolvedCwd)) {
-    return remarkConfigCache.get(resolvedCwd)
-  }
-
-  const candidates = ['.remarkrc.js', '.remarkrc.mjs', '.remarkrc.cjs']
-  let currentDir = resolvedCwd
-
-  while (true) {
-    if (remarkConfigCache.has(currentDir)) {
-      const cached = remarkConfigCache.get(currentDir)
-      remarkConfigCache.set(resolvedCwd, cached)
-      return cached
-    }
-
-    for (const candidate of candidates) {
-      const configPath = path.join(currentDir, candidate)
-
-      try {
-        await fs.access(configPath)
-        const module = await import(pathToFileURL(configPath).href)
-        const config = module.default ?? module
-        remarkConfigCache.set(currentDir, config)
-        remarkConfigCache.set(resolvedCwd, config)
-        return config
-      } catch (err) {
-        if (err?.code !== 'ENOENT') {
-          throw err
-        }
-      }
-    }
-
-    const parentDir = path.dirname(currentDir)
-    if (parentDir === currentDir) {
-      break
-    }
-    currentDir = parentDir
-  }
-
-  remarkConfigCache.set(resolvedCwd, null)
-  return null
-}
-
 async function loadRemarkIgnorePatterns(cwd = process.cwd()) {
   const ignorePath = path.join(cwd, '.remarkignore')
 
@@ -170,63 +126,6 @@ async function loadRemarkIgnorePatterns(cwd = process.cwd()) {
 
     throw err
   }
-}
-
-async function resolveConfiguredPlugin(pluginEntry, cwd) {
-  if (typeof pluginEntry !== 'string') {
-    return pluginEntry
-  }
-
-  const requireFromCwd = createRequire(path.join(cwd, '__markdownkit__.cjs'))
-  let resolvedPath
-
-  try {
-    resolvedPath = requireFromCwd.resolve(pluginEntry)
-  } catch {
-    resolvedPath = packageRequire.resolve(pluginEntry)
-  }
-
-  const module = await import(pathToFileURL(resolvedPath).href)
-  return module.default ?? module
-}
-
-async function createConfiguredProcessor(options = {}) {
-  const { filePath = '', lintOnly = false, typography = false, cwd = process.cwd() } = options
-  const config = await loadRemarkConfig(cwd)
-
-  if (!config?.plugins) {
-    return createMarkdownkitRemarkProcessor({
-      filePath,
-      lintOnly,
-      typography,
-      strict: true,
-      stringifySettings: config?.settings ?? {},
-    })
-  }
-
-  let processor = remark()
-
-  if (config.settings) {
-    processor = processor.data('settings', config.settings)
-  }
-
-  for (const pluginEntry of config.plugins) {
-    if (Array.isArray(pluginEntry)) {
-      const [pluginName, pluginOptions] = pluginEntry
-      const plugin = await resolveConfiguredPlugin(pluginName, cwd)
-      processor = processor.use(plugin, pluginOptions)
-      continue
-    }
-
-    const plugin = await resolveConfiguredPlugin(pluginEntry, cwd)
-    processor = processor.use(plugin)
-  }
-
-  if (typography) {
-    processor = processor.use(remarkTypography)
-  }
-
-  return processor
 }
 
 /**
@@ -531,7 +430,7 @@ async function getFiles(args, globPattern) {
  * Create a configured remark processor
  */
 async function createRemarkProcessor(options = {}) {
-  return createConfiguredProcessor(options)
+  return createConfiguredMarkdownkitRemarkProcessor(options)
 }
 
 /**
@@ -576,6 +475,7 @@ async function processMddFile(filePath, { write, lintOnly }) {
     success: true,
     reportText,
     outputText,
+    formatChanged: !lintOnly && outputText !== content,
     mddHasErrors: validation.errors.length > 0,
   }
 }
@@ -586,6 +486,7 @@ async function processFiles(files, options = {}) {
     quiet = false,
     lintOnly = false,
     typography = false,
+    checkFormatting = false,
     concurrency = DEFAULT_CONCURRENCY,
   } = options
 
@@ -609,10 +510,14 @@ async function processFiles(files, options = {}) {
       }
 
       const file = await read(filePath)
+      const inputText = String(file)
+      // Resolve `.remarkrc*` from the file's own directory upward (as remark-cli
+      // and the language server do), not from the invocation directory.
       const processor = await createRemarkProcessor({
         lintOnly,
         typography,
         filePath,
+        cwd: path.dirname(path.resolve(filePath)),
       })
 
       const result = await processor.process(file)
@@ -628,6 +533,7 @@ async function processFiles(files, options = {}) {
         success: true,
         reportText,
         outputText,
+        formatChanged: !lintOnly && outputText !== inputText,
       }
     } catch (err) {
       return {
@@ -659,6 +565,13 @@ async function processFiles(files, options = {}) {
       }
     }
 
+    if (checkFormatting && outcome.formatChanged) {
+      hasErrors = true
+      if (!quiet) {
+        console.error(`✗ Formatting differs: ${outcome.filePath}`)
+      }
+    }
+
     if (write && !lintOnly) {
       processedCount += 1
       if (!quiet) {
@@ -667,7 +580,7 @@ async function processFiles(files, options = {}) {
       continue
     }
 
-    if (!write && !lintOnly && !quiet) {
+    if (!write && !lintOnly && !checkFormatting && !quiet) {
       console.log(`\n${'='.repeat(60)}`)
       console.log(`File: ${outcome.filePath}`)
       console.log('='.repeat(60))
@@ -698,14 +611,7 @@ async function runNuclearMode(files, options = {}) {
   // Step 1: Autoformat Polish (Safe NLP & Structure)
   if (!quiet) console.log('Step 1/4: Running autoformat polish...')
   try {
-    const processor = new TextProcessor({
-      nlp: false,
-      semanticBreaks: false,
-      smartQuotes: true,
-      smartEllipsis: true,
-      firstLineTitle: false,
-      detectLabels: false,
-    })
+    const processor = new TextProcessor(createNuclearPolishOptions())
 
     const results = await formatFiles(processor, filteredFiles, {
       write: true,
@@ -1076,6 +982,7 @@ async function main() {
       const result = await processFiles(files, {
         write: false,
         quiet: options.quiet,
+        checkFormatting: true,
       })
       if (!options.quiet) {
         console.log(`\n${result.hasErrors ? '✗' : '✓'} Checked ${result.totalFiles} files`)

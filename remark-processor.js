@@ -14,6 +14,8 @@ import remarkPresetLintRecommended from 'remark-preset-lint-recommended'
 import remarkStringify from 'remark-stringify'
 import remarkTypography from 'remark-typography'
 
+import { TextProcessor } from './text-processor.js'
+
 export const RICH_MARKDOWN_EXTENSIONS = new Set(['.mdx', '.mdc', '.mdd'])
 
 export const DEFAULT_STRINGIFY_OPTIONS = {
@@ -82,8 +84,8 @@ async function loadRemarkConfig(cwd = process.cwd()) {
       const configPath = path.join(currentDir, candidate)
 
       try {
-        await fs.access(configPath)
-        const module = await import(pathToFileURL(configPath).href)
+        const stat = await fs.stat(configPath)
+        const module = await import(`${pathToFileURL(configPath).href}?mtime=${stat.mtimeMs}`)
         const config = module.default ?? module
         remarkConfigCache.set(currentDir, config)
         remarkConfigCache.set(resolvedCwd, config)
@@ -165,7 +167,11 @@ function filterPluginsForFile(plugins, filePath) {
   })
 }
 
-async function createConfiguredMarkdownkitRemarkProcessor(options = {}) {
+export function clearRemarkConfigCache() {
+  remarkConfigCache.clear()
+}
+
+export async function createConfiguredMarkdownkitRemarkProcessor(options = {}) {
   const { filePath = '', lintOnly = false, typography = false, cwd = process.cwd() } = options
   const config = await loadRemarkConfig(cwd)
 
@@ -287,8 +293,15 @@ export async function formatMarkdownText(text, options = {}) {
           lintOnly: false,
         })
 
+  const input = options.semanticBreaks
+    ? new TextProcessor({
+        semanticBreaks: true,
+        wrapWidth: options.wrapWidth ?? 88,
+      }).applySemanticBreaks(text)
+    : text
+
   const result = await processor.process({
-    value: text,
+    value: input,
     path: filePath,
   })
 
