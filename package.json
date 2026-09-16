@@ -1,6 +1,6 @@
 {
   "name": "@markdownkit/markdownkit",
-  "version": "2.3.2",
+  "version": "4.0.0",
   "description": "Opinionated markdown formatter and linter for MD, MDX, MDC, and MDD files using Remark/Unified ecosystem",
   "keywords": [
     "formatter",
