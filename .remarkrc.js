@@ -7,7 +7,7 @@ export default {
     emphasis: '*', // Use *emphasis* over _emphasis_
     strong: '*', // Use **strong** over __strong__
     fence: '`', // Use ``` for code fences
-    fences: true, // Use fences for code blocks (disabled for MDX in cli.js)
+    fences: true, // Use fences for code blocks
     incrementListMarker: true, // Increment ordered list markers
     listItemIndent: 'one', // Use one space for list indentation
     quote: '"', // Use double quotes in titles

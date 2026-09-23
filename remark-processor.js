@@ -206,18 +206,7 @@ export function shouldUseMarkdownStyleGuide(filePath = '') {
 }
 
 export function getStringifyOptions(filePath = '') {
-  const extension = path.extname(filePath).toLowerCase()
-  const handlers = getStringifyHandlers(filePath)
-
-  if (extension === '.mdx' || extension === '.mdd') {
-    return {
-      ...DEFAULT_STRINGIFY_OPTIONS,
-      fences: false,
-      handlers,
-    }
-  }
-
-  return { ...DEFAULT_STRINGIFY_OPTIONS, handlers }
+  return { ...DEFAULT_STRINGIFY_OPTIONS, handlers: getStringifyHandlers(filePath) }
 }
 
 export function remarkConditionalMarkdownStyleGuide() {
