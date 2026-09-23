@@ -91,7 +91,7 @@
     "js-yaml": "^5.4.2",
     "mdast-util-to-markdown": "^2.1.2",
     "rehype-remark": "^10.0.1",
-    "remark": "latest",
+    "remark": "^15.0.1",
     "remark-directive": "^4.0.0",
     "remark-docx": "^0.3.29",
     "remark-emoji": "^5.0.2",
