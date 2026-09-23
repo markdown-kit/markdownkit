@@ -158,7 +158,7 @@ This is a warning message!
 
 `.mdd` (Markdown Document) support is **built in** — `@markdownkit/remark-mdd` is a bundled dependency, so no extra install is required. `.mdd` files are handled by a dedicated, MDD-aware pipeline:
 
-- **Format** (`format`/`check`): safe normalization that **preserves** MDD directives (`::letterhead` … `::`), semantic classes (`{.legal-notice}`), and sub/superscripts (`H~2~O`, `note^1^`). MDX/MDC parsing is not applied to `.mdd`, so it never corrupts the source, and formatting is idempotent.
+- **Format** (`format`/`check`): safe normalization that **preserves** MDD directives (`:::letterhead` … `:::` blocks, parsed with remark-directive so a closer after a table or list stays a closer; documents still in the MDD 2 `::letterhead` … `::` spelling are formatted without it and keep that spelling), semantic classes (`{.legal-notice}`), and sub/superscripts (`H~2~O`, `note^1^`). MDX/MDC parsing is not applied to `.mdd`, so it never corrupts the source, and formatting is idempotent.
 - **Lint/validate** (`lint`/`check`): runs the canonical MDD validator (frontmatter, directives, per-document-type requirements, semantic classes) — the same checks as `mdd-validate` and the language server — so a document that is invalid in one tool is invalid in all of them. Recommendation warnings do not fail the run; only errors do.
 
 ```bash

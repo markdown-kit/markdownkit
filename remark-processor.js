@@ -3,8 +3,10 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { extractDirectives } from '@markdownkit/remark-mdd/validator'
 import { defaultHandlers } from 'mdast-util-to-markdown'
 import { remark } from 'remark'
+import remarkDirective from 'remark-directive'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkLintNoUndefinedReferences from 'remark-lint-no-undefined-references'
@@ -368,6 +370,45 @@ export async function createConfiguredMarkdownkitRemarkProcessor(options = {}) {
   return processor
 }
 
+/**
+ * remark-directive prints a block's content straight after the `:::name` line
+ * and straight before the closing `:::`. Renderers that scan paragraphs
+ * instead of running remark-directive (mdd preview and convert) need a blank
+ * line there when the content starts or ends with anything but a paragraph: a
+ * table or `---` right under the opener reads as paragraph text or a setext
+ * heading, and a closer right after a list or table is absorbed into it. A
+ * non-paragraph first or last child therefore gets a blank line.
+ */
+function remarkMddBlockSpacing() {
+  const extensions = this.data('toMarkdownExtensions')
+  const { containerDirective } = extensions.findLast(
+    (extension) => extension.handlers?.containerDirective,
+  ).handlers
+
+  extensions.push({
+    handlers: {
+      containerDirective(node, parent, state, info) {
+        let value = containerDirective(node, parent, state, info)
+        const content = node.children.filter((child) => !child.data?.directiveLabel)
+        if (content.length > 0 && content.at(-1).type !== 'paragraph') {
+          const closer = value.lastIndexOf('\n')
+          value = `${value.slice(0, closer)}\n${value.slice(closer)}`
+        }
+        if (content.length > 0 && content[0].type !== 'paragraph') {
+          const opener = value.indexOf('\n')
+          value = `${value.slice(0, opener)}\n${value.slice(opener)}`
+        }
+        return value
+      },
+    },
+  })
+}
+
+/** Whether an `.mdd` source uses the MDD 2 directive spelling anywhere. */
+function usesLegacyMddSyntax(text) {
+  return extractDirectives(text).some((directive) => directive.legacy)
+}
+
 export function createMarkdownkitRemarkProcessor(options = {}) {
   const {
     filePath = 'document.md',
@@ -379,6 +420,7 @@ export function createMarkdownkitRemarkProcessor(options = {}) {
     strict = true,
     lintOnly = false,
     typography = false,
+    legacyMdd = false,
     stringifySettings = {},
   } = options
 
@@ -390,6 +432,12 @@ export function createMarkdownkitRemarkProcessor(options = {}) {
   // plugins are intentionally NOT applied here: they emit HTML markers for
   // preview/conversion and would corrupt the source if stringified back.
   // `.mdd` rendering is delegated to @markdownkit/mdd.
+  //
+  // MDD 3 directives are remark-directive syntax, so `.mdd` parses with it and
+  // a `:::` closer after a table or list stays a closer. `legacyMdd` (a
+  // document in the MDD 2 spelling, still read with a warning) skips it:
+  // remark-directive would escape the `::` closers and `::page-break ::` /
+  // `::: section-break :::` lines, which it does not parse, as `\::`.
   const extension = path.extname(filePath).toLowerCase()
 
   let processor = remark()
@@ -402,6 +450,10 @@ export function createMarkdownkitRemarkProcessor(options = {}) {
     // On `.mdd`, disable single-tilde strikethrough so MDD subscripts (`~x~`)
     // are preserved rather than being rewritten to GFM strikethrough (`~~x~~`).
     processor = processor.use(remarkGfm, extension === '.mdd' ? { singleTilde: false } : undefined)
+  }
+
+  if (extension === '.mdd' && !legacyMdd) {
+    processor = processor.use(remarkDirective).use(remarkMddBlockSpacing)
   }
 
   if (mdx && extension === '.mdx') {
@@ -459,14 +511,19 @@ export async function createProcessorForFile(options = {}) {
 
 export async function formatMarkdownText(text, options = {}) {
   const filePath = options.filePath ?? 'document.md'
-  const processor = await createProcessorForFile({ ...options, filePath, lintOnly: false })
-
   const input = options.semanticBreaks
     ? new TextProcessor({
         semanticBreaks: true,
         wrapWidth: options.wrapWidth ?? 88,
       }).applySemanticBreaks(text)
     : text
+
+  const processor = await createProcessorForFile({
+    ...options,
+    filePath,
+    lintOnly: false,
+    legacyMdd: path.extname(filePath).toLowerCase() === '.mdd' && usesLegacyMddSyntax(input),
+  })
 
   const result = await processor.process({
     value: input,

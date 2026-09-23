@@ -6,6 +6,7 @@
     "**/build/**",
     "**/.next/**",
     "**/.cache/**",
+    "test/fixtures/**",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
