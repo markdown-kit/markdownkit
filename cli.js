@@ -589,7 +589,7 @@ async function processFiles(files, options = {}) {
  */
 async function runNuclearMode(files, options = {}) {
   const { quiet = false } = options
-  const hasOxlintMdx = await checkOxlintMdxAvailable()
+  const oxlintMdxCli = resolveOxlintMdxCli()
   const filteredFiles = files
 
   if (!quiet) {
@@ -663,7 +663,7 @@ async function runNuclearMode(files, options = {}) {
   }
 
   // Step 3: oxlint-mdx auto-fix (only if available)
-  if (hasOxlintMdx) {
+  if (oxlintMdxCli) {
     if (!quiet) console.log('Step 3/4: Running oxlint-mdx auto-fix...')
 
     // Parse the structured JSON report so remaining-issue counts are accurate,
@@ -682,14 +682,18 @@ async function runNuclearMode(files, options = {}) {
       return null
     }
 
-    // Pass file paths as an argument array (execFileSync, no shell) so file
-    // names cannot be interpreted as shell metacharacters.
+    // Run the dependency's own CLI with this Node binary (no `npx`, which would
+    // fetch the unscoped `oxlint-mdx` name from the registry when no local
+    // install shadows it). File paths go in an argument array (no shell) so
+    // they cannot be interpreted as shell metacharacters.
     let stdout = ''
     let runError = null
     try {
-      stdout = execFileSync('npx', ['oxlint-mdx', '--fix', '--format', 'json', ...filteredFiles], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }).toString()
+      stdout = execFileSync(
+        process.execPath,
+        [oxlintMdxCli, '--fix', '--format', 'json', ...filteredFiles],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+      ).toString()
     } catch (err) {
       runError = err
       stdout = err.stdout?.toString() ?? ''
@@ -815,23 +819,22 @@ async function runNuclearMode(files, options = {}) {
 }
 
 /**
- * Check if oxlint-mdx is available in the project
+ * Resolve the CLI entry of the `@markdownkit/oxlint-mdx` dependency.
+ *
+ * Availability is detected by RESOLVING the package, not by executing the
+ * CLI: running `oxlint-mdx --version` globs and lints the cwd (the flag is not
+ * a short-circuit), so a clean install with lint findings looked missing.
+ *
+ * @returns {string | null} absolute path to the CLI script, or null when not installed
  */
-async function checkOxlintMdxAvailable() {
-  // Detect availability by RESOLVING the package, not by executing the CLI.
-  // Running `oxlint-mdx --version` actually globs+lints the cwd (the flag is not
-  // a short-circuit), so a clean install with lint findings was wrongly
-  // reported as "not installed".
+function resolveOxlintMdxCli() {
   try {
-    packageRequire.resolve('@markdownkit/oxlint-mdx/package.json')
-    return true
-  } catch {
-    try {
-      packageRequire.resolve('@markdownkit/oxlint-mdx')
-      return true
-    } catch {
-      return false
+    return packageRequire.resolve('@markdownkit/oxlint-mdx/cli')
+  } catch (err) {
+    if (err?.code === 'MODULE_NOT_FOUND') {
+      return null
     }
+    throw err
   }
 }
 

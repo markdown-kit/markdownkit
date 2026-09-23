@@ -83,7 +83,7 @@
   "dependencies": {
     "@adobe/remark-gridtables": "^3.0.20",
     "@code-dot-org/remark-plugins": "^2.0.1",
-    "@markdownkit/oxlint-mdx": "^2.2.3",
+    "@markdownkit/oxlint-mdx": "^4.0.0",
     "@markdownkit/remark-mdd": "^4.0.0",
     "@theguild/remark-mermaid": "^0.3.0",
     "fumadocs-docgen": "^3.1.1",

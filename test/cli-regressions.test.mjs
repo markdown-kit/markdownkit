@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, chmod, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -11,10 +11,11 @@ const __dirname = path.dirname(__filename)
 const REPO_ROOT = path.resolve(__dirname, '..')
 const CLI_PATH = path.join(REPO_ROOT, 'cli.js')
 
-function runCli(args, cwd) {
+function runCli(args, cwd, env = process.env) {
   return spawnSync(process.execPath, [CLI_PATH, ...args], {
     cwd,
     encoding: 'utf8',
+    env,
   })
 }
 
@@ -141,6 +142,25 @@ test('nuclear ignores extension-like directory names', async () => {
     `${result.stdout}\n${result.stderr}`,
     /EISDIR|illegal operation on a directory/,
   )
+})
+
+test('nuclear runs the oxlint-mdx dependency directly, never an npx lookup', async () => {
+  const tmp = await makeTempDir('markdownkit-test-nuclear-npx')
+  await writeFile(path.join(tmp, 'README.md'), '# Title\n\nShort content.\n', 'utf8')
+  // A PATH holding only an `npx` that records being called: the nuclear run
+  // must not reach it (`npx oxlint-mdx` resolves an unscoped, unregistered
+  // package name from the registry when no local install shadows it).
+  const binDir = path.join(tmp, 'bin')
+  const marker = path.join(tmp, 'npx-called')
+  await mkdir(binDir)
+  await writeFile(path.join(binDir, 'npx'), `#!/bin/sh\n: > "${marker}"\nexit 1\n`, 'utf8')
+  await chmod(path.join(binDir, 'npx'), 0o755)
+
+  const result = runCli(['nuclear', 'README.md'], tmp, { ...process.env, PATH: binDir })
+
+  await assert.rejects(access(marker), 'npx was invoked')
+  assert.match(result.stdout, /Step 3\/4: Running oxlint-mdx auto-fix/u)
+  assert.doesNotMatch(result.stdout, /oxlint-mdx auto-fix failed/u)
 })
 
 test('mdx files are not forced through markdown-style-guide extension rule', async () => {
