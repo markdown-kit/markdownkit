@@ -105,7 +105,14 @@ for (const { name, source } of MDD_CASES) {
 
     assert.equal(await formatMarkdownText(once, { filePath }), once, 'format is idempotent')
     assert.deepEqual(directiveLines(once), directiveLines(source), 'directive lines unchanged')
-    assert.deepEqual(validationCodes(once), validationCodes(source), 'validator result unchanged')
+    // Formatting may repair a document (a blank line before a closer that
+    // follows a table or list), but must never introduce a finding.
+    const before = validationCodes(source)
+    const after = validationCodes(once)
+    for (const kind of ['errors', 'warnings']) {
+      const introduced = after[kind].filter((code) => !before[kind].includes(code))
+      assert.deepEqual(introduced, [], `formatting introduces no validator ${kind}`)
+    }
     assert.equal(
       (await renderedDirectives(once)).length,
       extractDirectives(source).length,
