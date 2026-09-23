@@ -404,7 +404,7 @@ pnpm run lint:all            # Both remark and oxlint-mdx
 pnpm run process        # Format then lint all
 pnpm run process:safe   # Dry-run first, then lint all
 pnpm run nuclear        # 🚀 Run ALL linters and fixers
-pnpm test               # Same as process:safe
+pnpm test               # process:safe, then the unit tests
 
 # Utilities
 pnpm run check-links    # Validate all markdown links

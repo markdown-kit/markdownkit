@@ -68,7 +68,7 @@
     "nuclear": "node cli.js nuclear",
     "clean-cache": "rm -rf .remark-cache",
     "test:cli": "node --test test/**/*.test.mjs",
-    "test": "pnpm run process:safe",
+    "test": "pnpm run process:safe && pnpm run test:cli",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
