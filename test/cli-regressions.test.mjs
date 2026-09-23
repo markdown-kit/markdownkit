@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { access, chmod, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, chmod, mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -94,6 +94,19 @@ test('setup command executes end-to-end from CLI', async () => {
 
   assert.match(gettingStartedContent, /# Getting Started Guide/)
   assert.match(styleGuideContent, /# Markdown Style Guide/)
+})
+
+test('markdownkit-setup runs when invoked through the installed bin symlink', async () => {
+  const tmp = await makeTempDir('markdownkit-test-setup-bin')
+  // Package managers install bins as symlinks (node_modules/.bin/markdownkit-setup).
+  const binPath = path.join(tmp, 'markdownkit-setup')
+  await symlink(path.join(REPO_ROOT, 'setup.js'), binPath)
+
+  const result = spawnSync(process.execPath, [binPath], { cwd: tmp, encoding: 'utf8' })
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /Setup complete/u)
+  await access(path.join(tmp, 'content', 'docs', 'getting-started.md'))
 })
 
 test('--plugins loads custom rules for autoformat', async () => {

@@ -5,8 +5,10 @@
  * Creates necessary directories and example files
  */
 
+import { realpathSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const EXAMPLE_FILES = {
   'content/docs/getting-started.md': `---
@@ -245,8 +247,25 @@ async function setup() {
   console.log('- `npm run check-links` - Check for broken links')
 }
 
-// Run setup if this script is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+/**
+ * Real path of `filePath`, or its absolute path when it does not exist (an
+ * `argv[1]` that is not a file, e.g. an argument to `node --eval`).
+ */
+function resolveRealPath(filePath) {
+  try {
+    return realpathSync(filePath)
+  } catch {
+    return path.resolve(filePath)
+  }
+}
+
+// Run setup if this script is executed directly. Real paths are compared
+// because package managers install the bin as a symlink
+// (node_modules/.bin/markdownkit-setup), which is what argv[1] points to.
+if (
+  process.argv[1] &&
+  resolveRealPath(process.argv[1]) === resolveRealPath(fileURLToPath(import.meta.url))
+) {
   setup().catch((err) => {
     console.error(`✗ Setup failed: ${err.message}`)
     process.exit(1)
