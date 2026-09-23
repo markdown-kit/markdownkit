@@ -36,6 +36,100 @@ test('short quiet flag (-q) suppresses autoformat logs', async () => {
   assert.doesNotMatch(result.stdout, /Formatted:/)
 })
 
+const MDD_FRONTMATTER =
+  '---\ntitle: "T"\ndate: "2024-01-01"\nauthor: "A"\ndocument-type: "business-proposal"\n---\n\n'
+
+for (const { name, args, file, content, status, stderr } of [
+  {
+    name: 'lint reports lint findings',
+    args: ['lint'],
+    file: 'notes.md',
+    content: '# Title',
+    status: 1,
+    stderr: /final-newline/u,
+  },
+  {
+    name: 'format reports files that fail to process',
+    args: ['format'],
+    file: 'broken.mdx',
+    content: '# Title\n\n<div\n',
+    status: 1,
+    stderr: /Error processing .*broken\.mdx/u,
+  },
+  {
+    name: 'check reports formatting drift',
+    args: ['check'],
+    file: 'drift.md',
+    content: '# Title\n\n\nParagraph\n',
+    status: 1,
+    stderr: /Formatting differs/u,
+  },
+  {
+    name: 'lint reports .mdd validation errors',
+    args: ['lint'],
+    file: 'invalid.mdd',
+    content: `${MDD_FRONTMATTER.replace('business-proposal', 'no-such-type')}Text.\n`,
+    status: 1,
+    stderr: /INVALID_DOCUMENT_TYPE/u,
+  },
+  {
+    name: 'lint stays silent on .mdd recommendation warnings',
+    args: ['lint'],
+    file: 'warnings.mdd',
+    content: `${MDD_FRONTMATTER}:::letterhead\nACME\n:::\n\nText.\n`,
+    status: 0,
+    stderr: /^$/u,
+  },
+]) {
+  test(`--quiet still shows errors: ${name}`, async () => {
+    const tmp = await makeTempDir('markdownkit-test-quiet-errors')
+    const inputPath = path.join(tmp, file)
+    await writeFile(inputPath, content, 'utf8')
+
+    const result = runCli([...args, '-q', inputPath], tmp)
+
+    assert.equal(result.status, status, result.stderr)
+    assert.match(result.stderr, stderr)
+    assert.equal(result.stdout, '')
+  })
+}
+
+test('autoformat --quiet still reports files that fail to process', async () => {
+  const tmp = await makeTempDir('markdownkit-test-quiet-autoformat')
+  const inputPath = path.join(tmp, 'locked.txt')
+  await writeFile(inputPath, 'a note\n', 'utf8')
+  await chmod(inputPath, 0o000)
+
+  const result = runCli(['autoformat', '-q', inputPath], tmp)
+
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Error processing .*locked\.txt/u)
+})
+
+test('nuclear --quiet still reports the issues left after fixing', async () => {
+  const tmp = await makeTempDir('markdownkit-test-quiet-nuclear')
+  // remark-lint no-file-name-articles: a finding no fixer can resolve.
+  const inputPath = path.join(tmp, 'the-notes.md')
+  await writeFile(inputPath, '# Notes\n\nText.\n', 'utf8')
+
+  const result = runCli(['nuclear', '-q', inputPath], tmp)
+
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /no-file-name-articles/u)
+  assert.doesNotMatch(result.stdout, /NUCLEAR MODE/u)
+})
+
+test('nuclear --quiet still reports code-block findings oxlint-mdx could not fix', async () => {
+  const tmp = await makeTempDir('markdownkit-test-quiet-nuclear-oxlint')
+  const inputPath = path.join(tmp, 'guide.md')
+  await writeFile(inputPath, '# Guide\n\n```js\ndebugger\n```\n', 'utf8')
+
+  const result = runCli(['nuclear', '-q', inputPath], tmp)
+
+  assert.equal(result.status, 1)
+  assert.match(result.stdout, /oxlint-mdx: \d+ error\(s\), \d+ warning\(s\) need manual fixes/u)
+})
+
 test('short recursive flag (-r) processes directory inputs', async () => {
   const tmp = await makeTempDir('markdownkit-test-r')
   const nestedDir = path.join(tmp, 'nested')

@@ -244,11 +244,18 @@ async function loadAutoformatPlugins(pluginsPath, options = {}) {
  * Format multiple files using a TextProcessor instance
  * @param {TextProcessor} processor - Configured TextProcessor
  * @param {string[]} files - Array of file paths
- * @param {Object} options - { write: boolean, quiet: boolean }
+ * @param {Object} options - { write: boolean, quiet: boolean, silent: boolean }
+ *   `quiet` (--quiet) prints only failures; `silent` prints nothing (callers
+ *   that report results themselves)
  * @returns {Promise<Array<{file: string, success: boolean, error?: string}>>}
  */
 async function formatFiles(processor, files, options = {}) {
-  const { write = false, quiet = false, concurrency = DEFAULT_CONCURRENCY } = options
+  const {
+    write = false,
+    quiet = false,
+    silent = false,
+    concurrency = DEFAULT_CONCURRENCY,
+  } = options
 
   const results = await mapWithConcurrency(files, concurrency, async (file) => {
     try {
@@ -268,10 +275,10 @@ async function formatFiles(processor, files, options = {}) {
     }
   })
 
-  if (!quiet) {
+  if (!silent) {
     for (const result of results) {
       if (result.success) {
-        if (write) {
+        if (write && !quiet) {
           console.log(`✓ Formatted: ${result.file}`)
         }
       } else {
@@ -472,10 +479,16 @@ async function processMddFile(filePath, { write, lintOnly }) {
   }
 }
 
+/**
+ * Format, lint, or check files with remark (and the MDD validator for .mdd).
+ * `quiet` (--quiet) prints only what fails the run; `silent` prints nothing
+ * (callers that report results themselves).
+ */
 async function processFiles(files, options = {}) {
   const {
     write = false,
     quiet = false,
+    silent = false,
     lintOnly = false,
     typography = false,
     checkFormatting = false,
@@ -538,7 +551,7 @@ async function processFiles(files, options = {}) {
 
   for (const outcome of outcomes) {
     if (!outcome.success) {
-      if (!quiet) {
+      if (!silent) {
         console.error(`✗ Error processing ${outcome.filePath}: ${outcome.error}`)
       }
       hasErrors = true
@@ -546,20 +559,21 @@ async function processFiles(files, options = {}) {
     }
 
     if (outcome.reportText) {
-      if (!quiet) {
-        console.error(outcome.reportText)
-      }
       // For .mdd outcomes, only hard errors fail the run; recommendation
       // warnings are informational. Non-mdd outcomes (mddHasErrors undefined)
       // keep the original behavior of failing on any reported message.
-      if (outcome.mddHasErrors !== false) {
+      const failsRun = outcome.mddHasErrors !== false
+      if (failsRun) {
         hasErrors = true
+      }
+      if (!silent && (failsRun || !quiet)) {
+        console.error(outcome.reportText)
       }
     }
 
     if (checkFormatting && outcome.formatChanged) {
       hasErrors = true
-      if (!quiet) {
+      if (!silent) {
         console.error(`✗ Formatting differs: ${outcome.filePath}`)
       }
     }
@@ -607,7 +621,7 @@ async function runNuclearMode(files, options = {}) {
 
     const results = await formatFiles(processor, filteredFiles, {
       write: true,
-      quiet: true,
+      silent: true,
     })
 
     const successCount = results.filter((r) => r.success).length
@@ -625,7 +639,7 @@ async function runNuclearMode(files, options = {}) {
       success: false,
       details: err.message,
     })
-    if (!quiet) console.log(`  ✗ Autoformat polish failed: ${err.message}\n`)
+    console.log(`  ✗ Autoformat polish failed: ${err.message}\n`)
   }
 
   // Step 2: Remark formatting (auto-fix markdown syntax)
@@ -633,7 +647,7 @@ async function runNuclearMode(files, options = {}) {
   try {
     const result = await processFiles(filteredFiles, {
       write: true,
-      quiet: true,
+      silent: true,
     })
     const formatted = result.processedCount
     const withIssues = result.hasErrors
@@ -659,7 +673,7 @@ async function runNuclearMode(files, options = {}) {
       details: err.message,
     })
     overallSuccess = false
-    if (!quiet) console.log(`  ✗ Remark formatting failed: ${err.message}\n`)
+    console.log(`  ✗ Remark formatting failed: ${err.message}\n`)
   }
 
   // Step 3: oxlint-mdx auto-fix (only if available)
@@ -716,17 +730,15 @@ async function runNuclearMode(files, options = {}) {
           success: false,
           details: `${summary.errors ?? 0} error(s), ${summary.warnings ?? 0} warning(s) remain`,
         })
-        if (!quiet) {
-          console.log(
-            `  ⚠️  oxlint-mdx: ${summary.errors ?? 0} error(s), ${summary.warnings ?? 0} warning(s) need manual fixes\n`,
-          )
-        }
+        console.log(
+          `  ⚠️  oxlint-mdx: ${summary.errors ?? 0} error(s), ${summary.warnings ?? 0} warning(s) need manual fixes\n`,
+        )
         overallSuccess = false
       }
     } else if (runError) {
       // No parseable report and the process failed → genuine runtime failure.
       steps.push({ name: 'oxlint-mdx Fix', success: false, details: runError.message })
-      if (!quiet) console.log(`  ✗ oxlint-mdx auto-fix failed: ${runError.message}\n`)
+      console.log(`  ✗ oxlint-mdx auto-fix failed: ${runError.message}\n`)
       overallSuccess = false
     } else {
       steps.push({
@@ -754,7 +766,7 @@ async function runNuclearMode(files, options = {}) {
   try {
     validationResult = await processFiles(filteredFiles, {
       lintOnly: true,
-      quiet: true,
+      silent: true,
     })
     const hasIssues = validationResult.hasErrors
 
@@ -778,16 +790,18 @@ async function runNuclearMode(files, options = {}) {
   } catch (err) {
     steps.push({ name: 'Validation', success: false, details: err.message })
     overallSuccess = false
-    if (!quiet) console.log(`  ✗ Validation failed: ${err.message}\n`)
+    console.log(`  ✗ Validation failed: ${err.message}\n`)
   }
 
-  // Show detailed issues if validation failed
-  if (!quiet && validationResult?.hasErrors) {
-    console.log('═'.repeat(60))
-    console.log('REMAINING ISSUES')
-    console.log('═'.repeat(60))
-    await processFiles(filteredFiles, { lintOnly: true, quiet: false })
-    console.log()
+  // Show detailed issues if validation failed (with --quiet, only the issues)
+  if (validationResult?.hasErrors) {
+    if (!quiet) {
+      console.log('═'.repeat(60))
+      console.log('REMAINING ISSUES')
+      console.log('═'.repeat(60))
+    }
+    await processFiles(filteredFiles, { lintOnly: true, quiet })
+    if (!quiet) console.log()
   }
 
   // Summary
